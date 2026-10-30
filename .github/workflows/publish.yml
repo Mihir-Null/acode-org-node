@@ -1,20 +1,38 @@
 name: Publish
 
-# A published GitHub release builds the plugin, attaches plugin.zip to the
-# release, and uploads it to the Acode plugin store.  Needs the repository
-# secret ACODE_API_KEY: an acode.app API key with "Publish updates" for this
-# plugin (https://acode.app/api-keys).
+# Publishes the plugin to the Acode plugin store (acode.app), from either of:
+#
+#   - a pushed tag:        git tag v0.3.1 && git push origin v0.3.1
+#     The workflow creates the GitHub release, with notes from changelogs.md.
+#   - a published release, made on GitHub with a vX.Y.Z tag.
+#
+# A release made on GitHub with a new tag fires both, so runs for one tag
+# queue one after the other, and a run that finds plugin.zip already on the
+# release stops: an earlier run published that version.  The zip is attached
+# only after the store accepted the upload, so it marks "done".
+#
+# Needs the repository secret ACODE_API_KEY: an acode.app API key with
+# "Publish updates" for this plugin (https://acode.app/api-keys).
 
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
 
 permissions:
-  contents: write # to attach plugin.zip to the release
+  contents: write # to create the release and attach plugin.zip
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,13 +43,28 @@ jobs:
       - name: The tag matches plugin.json's version
         run: |
           version=$(node -p 'require("./plugin.json").version')
-          test "${GITHUB_REF_NAME#v}" = "$version" || { echo "Tag $GITHUB_REF_NAME does not match plugin.json version $version"; exit 1; }
-      - run: npm run build
-      - name: Attach plugin.zip to the release
-        run: gh release upload "$GITHUB_REF_NAME" dist/plugin.zip --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
+          test "${TAG#v}" = "$version" || { echo "Tag $TAG does not match plugin.json version $version"; exit 1; }
+      - name: Published already?
+        id: done
+        run: |
+          if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx plugin.zip; then
+            echo "::notice::$TAG already has plugin.zip: an earlier run published it"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.done.outputs.published != 'true'
+        run: npm run build
+      - name: Create the GitHub release, unless it exists
+        if: steps.done.outputs.published != 'true'
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            node tools/release-notes.mjs "${TAG#v}" > notes.md
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md
+          fi
       - uses: Acode-Foundation/publish-plugin@v1
+        if: steps.done.outputs.published != 'true'
         with:
           api-key: ${{ secrets.ACODE_API_KEY }}
           zip: dist/plugin.zip
+      - name: Attach plugin.zip to the release
+        if: steps.done.outputs.published != 'true'
+        run: gh release upload "$TAG" dist/plugin.zip --clobber
