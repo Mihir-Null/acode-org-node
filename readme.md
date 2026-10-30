@@ -204,9 +204,17 @@ storage URLs, the index and its cache, and how the tests are split.
 
 1. Raise `version` in `plugin.json` (acode.app refuses a version that is not greater) and add a section to
    `changelogs.md`, which becomes the store's changelog.
-2. Merge to `main`, then publish a GitHub release tagged `vX.Y.Z`. The *Publish* workflow builds `dist/plugin.zip`,
-   attaches it to the release, and uploads it to acode.app with the `ACODE_API_KEY` secret, an acode.app
-   [API key](https://acode.app/api-keys) with the *Publish updates* permission for this plugin.
+2. Merge to `main`, then tag it and push the tag:
+
+   ```sh
+   git tag vX.Y.Z origin/main && git push origin vX.Y.Z
+   ```
+
+   The *Publish* workflow checks the tag against `plugin.json`, builds `dist/plugin.zip`, creates the GitHub release
+   with that version's section of `changelogs.md` as its notes, uploads the zip to acode.app with the
+   `ACODE_API_KEY` secret (an acode.app [API key](https://acode.app/api-keys) with the *Publish updates* permission
+   for this plugin), and attaches it to the release. Publishing a release on GitHub with a `vX.Y.Z` tag works too;
+   either way each version is uploaded once.
 
 The very first version is submitted once by hand at acode.app, and an admin approves it before it is listed.
 
