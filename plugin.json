@@ -2,7 +2,7 @@
   "id": "mihirnull.org-node",
   "name": "Org-node",
   "main": "main.js",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "readme": "readme.md",
   "icon": "icon.png",
   "files": [],

@@ -20,12 +20,13 @@ import { BacklinksPanel } from "./acode/backlinks.js";
 import { Indexer, readDirLocals } from "./acode/files.js";
 import { orgExtensions } from "./acode/orgmode.js";
 import { pickNode } from "./acode/picker.js";
+import { LanguageResolver } from "./acode/srcblocks.js";
 import styles from "./styles.css";
 
 const PROJECTS_KEY = "org-node.projects";
 const SIDEBAR_ID = "org-node";
 const ICON = "org-node-icon";
-const DEFAULTS = { notesFolder: "", notesExcluded: "", followProjects: true, highlight: true };
+const DEFAULTS = { notesFolder: "", notesExcluded: "", followProjects: true, highlight: true, linkButton: true };
 const NO_FOLDER_MESSAGE =
   "No notes folder yet: run “Org-node: Set notes folder”, or open a project whose .dir-locals.el sets kittymacs-org-node-project";
 
@@ -80,6 +81,7 @@ class OrgNodePlugin {
     this.#registerSelectionMenu();
     this.#registerSidebar();
     this.#registerOrgMode();
+    this.#registerLinkButton();
     this.#listen();
 
     // Show the cached graph at once; refresh it from disk shortly after, so
@@ -104,6 +106,7 @@ class OrgNodePlugin {
     for (const [target, event, fn] of this.#listeners) target.off ? target.off(event, fn) : target.removeEventListener(event, fn);
     this.#listeners = [];
     acode.require("sidebarApps").remove(SIDEBAR_ID);
+    this.linkButton?.hide();
     const languages = acode.require("editorLanguages");
     languages.unregister("org");
     if (this.#previousOrgMode) languages.register(...this.#previousOrgMode);
@@ -227,14 +230,19 @@ class OrgNodePlugin {
     return file && isNoteFileName(file.filename ?? "") ? file : null;
   }
 
-  /** The note at the cursor: {id} or {id: null, reason}. */
+  /**
+   * The note at the cursor, {id, url, links} with LINKS its outgoing id:
+   * links, or {id: null, reason}.
+   */
   currentNote = () => {
     const file = this.#activeOrgFile();
-    if (!file) return { id: null, reason: "Open an Org file to see the backlinks of the note you are in." };
+    if (!file) return { id: null, reason: "Open an Org file to see the links of the note you are in." };
     const { doc, selection } = this.view.state;
     // Parse the editor's text, so unsaved edits count; cache by document.
     if (this.#live.doc !== doc) this.#live = { doc, parsed: parseOrg(doc.toString(), { fileName: file.filename }) };
-    return { id: idAtLine(this.#live.parsed, doc.lineAt(selection.main.head).number - 1) };
+    const { parsed } = this.#live;
+    const id = idAtLine(parsed, doc.lineAt(selection.main.head).number - 1);
+    return { id, url: file.uri, links: parsed.links.filter((link) => link.origin === id) };
   };
 
   /** Open URL with the cursor on LINE (0-based), or at the end. */
@@ -403,7 +411,7 @@ class OrgNodePlugin {
     acode.newEditorFile("org-node-tags.org", { text: `${lines.join("\n")}\n`, render: true, isUnsaved: false, readOnly: true });
   }
 
-  /** [SPC n b] Show the backlinks panel. */
+  /** [SPC n b] Show the links panel. */
   showBacklinks() {
     const tab = document.querySelector(`[data-action="sidebar-app"][data-id="${SIDEBAR_ID}"]`);
     tab?.click();
@@ -455,7 +463,7 @@ class OrgNodePlugin {
       { name: "org-node.insert-link", description: "Org-node: Insert link to note", bindKey: "Alt-Shift-I", exec: run(this.insertLink) },
       { name: "org-node.follow-link", description: "Org-node: Open link at cursor", bindKey: "Alt-Shift-O", exec: run(() => this.followLink()) },
       { name: "org-node.new-note", description: "Org-node: New note in folder…", bindKey: "Alt-Shift-C", exec: run(this.newNote) },
-      { name: "org-node.backlinks", description: "Org-node: Show backlinks", bindKey: "Alt-Shift-B", exec: run(this.showBacklinks) },
+      { name: "org-node.backlinks", description: "Org-node: Show links", bindKey: "Alt-Shift-B", exec: run(this.showBacklinks) },
       { name: "org-node.find-by-tag", description: "Org-node: Find note by tag", bindKey: "Alt-Shift-T", exec: run(this.findByTag) },
       { name: "org-node.tag-index", description: "Org-node: List tags and their notes", exec: run(this.tagIndex) },
       { name: "org-node.rescan", description: "Org-node: Rescan graph", bindKey: "Alt-Shift-S", exec: run(this.rescan) },
@@ -521,8 +529,11 @@ class OrgNodePlugin {
       languages.unregister("org");
     }
     const cm = acode.require("codemirror");
+    // Src blocks borrow Acode's language modes (built-in, or from plugins).
+    const resolver = new LanguageResolver(languages, { exclude: ["org"] });
     languages.register("org", ["org", "org_archive"], "Org", () =>
       orgExtensions(cm, {
+        resolver,
         onCursor: () => this.panel?.refresh(),
         onLinkClick: (view, pos) => {
           if (!this.linkAt(view, pos)) return false;
@@ -534,13 +545,38 @@ class OrgNodePlugin {
     for (const file of editorManager.files ?? []) if (isNoteFileName(file.filename ?? "")) file.setMode?.("org");
   }
 
+  /**
+   * A "Link" button on the editor's right edge while an Org file is open:
+   * one tap to insert a link, where the command palette takes three.
+   */
+  #registerLinkButton() {
+    if (!this.settings.linkButton) return;
+    const SideButton = acode.require("sideButton");
+    if (!SideButton) return;
+    this.linkButton = SideButton({
+      text: "Link",
+      icon: ICON,
+      onclick: () => this.insertLink().catch((error) => toast(`Org-node: ${error?.message ?? error}`)),
+    });
+    this.#updateLinkButton();
+  }
+
+  #updateLinkButton() {
+    if (!this.linkButton) return;
+    if (this.#activeOrgFile()) this.linkButton.show();
+    else this.linkButton.hide();
+  }
+
   #on(target, event, fn) {
     target.on ? target.on(event, fn) : target.addEventListener(event, fn);
     this.#listeners.push([target, event, fn]);
   }
 
   #listen() {
-    this.#on(editorManager, "switch-file", () => this.panel?.refresh());
+    this.#on(editorManager, "switch-file", () => {
+      this.#updateLinkButton();
+      this.panel?.refresh();
+    });
     this.#on(editorManager, "save-file", async (file) => {
       file ??= editorManager.activeFile;
       if (!file?.uri || !isNoteFileName(file.filename ?? "")) return;
@@ -589,16 +625,22 @@ function settingsPage(instance) {
         checkbox: value.followProjects,
       },
       {
+        key: "linkButton",
+        text: "Link button in Org files",
+        info: "A Link button on the editor's right edge inserts a link to a note. Takes effect after restarting Acode.",
+        checkbox: value.linkButton,
+      },
+      {
         key: "highlight",
         text: "Org highlighting and folding",
-        info: "Takes effect after restarting Acode.",
+        info: "Headings, links, tags, folding, and code in src blocks coloured by its language. Takes effect after restarting Acode.",
         checkbox: value.highlight,
       },
     ],
     cb: async (key, newValue) => {
       appSettings.value[plugin.id] = { ...DEFAULTS, ...appSettings.value[plugin.id], [key]: newValue };
       await appSettings.update(false);
-      if (key !== "highlight") instance.reindex({ quiet: key !== "notesFolder" }).catch(() => {});
+      if (!["highlight", "linkButton"].includes(key)) instance.reindex({ quiet: key !== "notesFolder" }).catch(() => {});
     },
   };
 }

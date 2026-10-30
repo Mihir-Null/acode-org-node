@@ -17,8 +17,9 @@ src/
   acode/           the parts that touch Acode or the screen
     files.js       listing and reading files; the index and its cache
     picker.js      the search overlay
-    backlinks.js   the sidebar panel
+    backlinks.js   the sidebar panel: links to and from the note at the cursor
     orgmode.js     CodeMirror highlighting and folding for Org
+    srcblocks.js   src blocks coloured by Acode's own language modes
   main.js          lifecycle, settings, commands, events: the glue
 ```
 
@@ -125,6 +126,33 @@ The plugin never bundles CodeMirror. Extensions only work with the *same* copy o
 facets and state fields are compared by identity), so `orgExtensions` receives Acode's own modules from
 `acode.require("codemirror")`.
 
+## Src blocks in their own language (`acode/srcblocks.js`)
+
+Org colours a src block with the major mode of its language (`org-src-fontify-natively`). The plugin does the same
+with Acode's **language modes**, which already cover dozens of languages and grow with every language plugin you
+install:
+
+1. **Find the blocks.** `findSrcBlocks` lists the closed `#+begin_src LANG … #+end_src` blocks of the document, once
+   per version of the text.
+2. **Find the language.** `LanguageResolver` asks Acode's `editorLanguages` for a mode called LANG, then for the mode
+   of a file named `file.EXT`, using a table from Org's language names to file extensions (`emacs-lisp` → `el`).
+   That is the order Acode's own code-snippet highlighter uses. A mode's loader returns a CodeMirror extension;
+   somewhere inside it is a `Language`, which has a `parser`. Each name is looked up once.
+3. **Parse and paint.** For each block on screen, the block's text is parsed with that parser, and
+   `highlightTree` walks the result, asking `highlightingFor` (the active theme) for the class of each token. Each
+   class becomes a *mark decoration*: a span CodeMirror draws over that range of the document. Parses are cached by
+   text, so scrolling and typing elsewhere cost nothing.
+
+Loading a language is asynchronous. The first paint skips a block whose language is not loaded yet; when it arrives,
+the plugin dispatches a small state effect that makes the view plugin paint again.
+
+The Org tokenizer returns no style for the lines of a src block that names its language, so the two layers of
+colour never compete. A block without a language, or in one Acode does not know, keeps the plain code style.
+
+Why not language servers? They provide completion, diagnostics and navigation for whole files; colouring in Acode
+comes from language modes. Attaching a server to a block would mean opening the block as a file of its own, as
+Emacs' `org-edit-special` (`C-c '`) does; that is a possible later feature.
+
 ## The glue (`main.js`)
 
 - **Lifecycle.** `acode.setPluginInit` runs `init`; `setPluginUnmount` runs `destroy`, which removes every command,
@@ -134,8 +162,11 @@ facets and state fields are compared by identity), so `orgExtensions` receives A
 - **Events.** `save-file` re-parses the saved file from the editor's text; `add-folder` checks the new folder for a
   project flag; `resume` (the app returning to the foreground) re-reads what changed, which is how a `git pull` in
   Termux reaches the graph.
-- **The note at the cursor** is computed from the editor's live text, not the saved file, so the backlinks panel is
-  right even before you save.
+- **The note at the cursor** is computed from the editor's live text, not the saved file. That gives the panel its
+  forward links (the parsed links whose origin is this note) before you save; backlinks come from the index, since
+  they live in other files.
+- **The Link button** is one of Acode's side buttons (`acode.require("sideButton")`), the documented way for a
+  plugin to put a button beside the editor. It is shown on `switch-file` when the new file is an Org file.
 
 ## The tests
 
@@ -144,7 +175,8 @@ facets and state fields are compared by identity), so `orgExtensions` receives A
 | `test/core.test.js`       | Node     | the parser, reader, paths, slugs, matcher and graph, on small inputs       |
 | `test/real-repos.test.js` | Node     | real checkouts: every `:ID:` line is a note, every UUID link resolves      |
 | `test/orgmode.test.js`    | Node     | the highlighter's tokens and the fold ranges                                |
-| `test/smoke.test.js`      | Chromium | the built plugin against a stand-in Acode: find, create, link, follow, backlinks, tags, folding, unmount |
+| `test/srcblocks.test.js`  | Node     | finding src blocks, mapping Org language names, resolving Acode's modes    |
+| `test/smoke.test.js`      | Chromium | the built plugin against a stand-in Acode: find, create, link, follow, both links sections, src-block colours, the Link button, tags, folding, unmount |
 
 `test/smoke/harness.js` is that stand-in. It implements only the parts of Acode's API the plugin calls, over an
 in-memory file system, with a real CodeMirror editor. It is a model of Acode, not Acode, so the first run on a phone

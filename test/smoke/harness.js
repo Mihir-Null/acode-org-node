@@ -4,7 +4,9 @@
 // It is bundled with the real @codemirror packages and loaded into Chromium
 // before build/main.js, the same bundle Acode would load.
 
+import { javascript } from "@codemirror/lang-javascript";
 import * as language from "@codemirror/language";
+import * as lezerHighlight from "@lezer/highlight";
 import * as state from "@codemirror/state";
 import * as view from "@codemirror/view";
 
@@ -21,6 +23,11 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
   const selectionItems = [];
   const sidebar = new Map();
   const languages = new Map();
+  const sideButtons = [];
+  // Acode's Mode objects: a name, extensions, and a loader.
+  const mode = (name, extensions, caption, loader) => ({ name, extensions, caption, languageExtension: loader ?? null, loader });
+  // A built-in mode, as Acode has dozens: JavaScript, for src blocks.
+  languages.set("javascript", mode("javascript", ["js", "mjs"], "JavaScript", () => javascript()));
   let unmount = null;
   let init = null;
   let settingsPage = null;
@@ -98,7 +105,7 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
   let activeFile = null;
 
   const modeFor = (filename) => {
-    for (const [name, mode] of languages) if (mode.extensions.some((ext) => filename.endsWith(`.${ext}`))) return name;
+    for (const [name, m] of languages) if (m.extensions.some((ext) => filename.endsWith(`.${ext}`))) return name;
     return "text";
   };
   const extensionsFor = async (mode) => (languages.get(mode)?.loader ? await languages.get(mode).loader() : []);
@@ -200,11 +207,17 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
       },
     },
     editorlanguages: {
-      register: (name, extensions, caption, loader) => languages.set(name, { name, extensions, caption, loader }),
+      register: (name, extensions, caption, loader) => languages.set(name, mode(name, extensions, caption, loader)),
       unregister: (name) => languages.delete(name),
       get: (name) => languages.get(name) ?? null,
+      getForPath: (path) => [...languages.values()].find((m) => m.extensions.some((ext) => path.endsWith(`.${ext}`))) ?? mode("text", ["txt"], "Text"),
     },
-    codemirror: { language, state, view },
+    sidebutton: ({ text, onclick }) => {
+      const button = { text, onclick, shown: false, show: () => (button.shown = true), hide: () => (button.shown = false) };
+      sideButtons.push(button);
+      return button;
+    },
+    codemirror: { language, state, view, lezer: lezerHighlight },
   };
 
   window.editorManager = editorManager;
@@ -248,6 +261,7 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
     selectionItems,
     sidebar,
     languages,
+    sideButtons,
     editor,
     editorManager,
     get settingsPage() {

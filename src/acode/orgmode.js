@@ -11,6 +11,8 @@
 // run them without an editor; orgExtensions() wraps them with the CodeMirror
 // modules Acode hands to plugins, so the plugin never bundles its own copy.
 
+import { srcBlockHighlighting } from "./srcblocks.js";
+
 const HEADING_START = /^(\*+)(?=[ \t])/;
 const TODO_WORDS = ["TODO", "NEXT", "WAITING", "DONE", "CANCELED"];
 
@@ -45,7 +47,7 @@ function inlineToken(stream, base) {
 /** The stream parser: CodeMirror calls token() until each line is used up. */
 export const orgStreamParser = {
   name: "org",
-  startState: () => ({ block: null, heading: 0, lineKind: null, todo: TODO_WORDS }),
+  startState: () => ({ block: null, blockLang: null, heading: 0, lineKind: null, todo: TODO_WORDS }),
   copyState: (state) => ({ ...state }),
   languageData: { commentTokens: { line: "#" } },
 
@@ -64,6 +66,9 @@ export const orgStreamParser = {
           return "meta";
         }
         stream.skipToEnd();
+        // A src block that names its language is coloured by that language
+        // (srcblocks.js), so the Org style stays out of its way.
+        if (state.block === "src" && state.blockLang) return null;
         return BLOCK_STYLES[state.block] ?? null;
       }
 
@@ -74,9 +79,10 @@ export const orgStreamParser = {
         return `heading${state.heading} processingInstruction`;
       }
 
-      const begin = stream.match(/^[ \t]*#\+begin_(\w+)/i);
+      const begin = stream.match(/^[ \t]*#\+begin_(\w+)(?:[ \t]+(\S+))?/i);
       if (begin) {
         state.block = begin[1].toLowerCase();
+        state.blockLang = begin[2] ?? null;
         stream.skipToEnd();
         return "meta";
       }
@@ -176,6 +182,8 @@ export function foldLinesAt(line, lineCount, index) {
  *   selection moves or the text changes, so the backlinks panel can follow
  * @param {(view, pos) => boolean} [hooks.onLinkClick] Ctrl/Cmd-click on a
  *   link; return true when handled
+ * @param {import("./srcblocks.js").LanguageResolver} [hooks.resolver] when
+ *   given, src blocks are highlighted in their own languages
  */
 export function orgExtensions(cm, hooks = {}) {
   const { StreamLanguage, foldService } = cm.language;
@@ -190,6 +198,7 @@ export function orgExtensions(cm, hooks = {}) {
       return { from: first.to, to: doc.line(range[1] + 1).to };
     }),
   ];
+  if (hooks.resolver) extensions.push(srcBlockHighlighting(cm, hooks.resolver));
   if (hooks.onLinkClick) {
     extensions.push(
       EditorView.domEventHandlers({

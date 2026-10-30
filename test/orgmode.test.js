@@ -50,12 +50,19 @@ test("keywords, drawers, comments, planning, lists", () => {
 });
 
 test("blocks are one style until their end line", () => {
-  const lines = tokens("#+begin_src nix\n,* escaped star\n{ x = 1; }\n#+end_src\n* Heading");
-  assert.deepEqual(lines[0], [["#+begin_src nix", "meta"]]);
+  const lines = tokens("#+begin_src\n,* escaped star\n{ x = 1; }\n#+end_src\n* Heading");
+  assert.deepEqual(lines[0], [["#+begin_src", "meta"]]);
   assert.deepEqual(lines[1], [[",* escaped star", "monospace"]]);
   assert.deepEqual(lines[2], [["{ x = 1; }", "monospace"]]);
   assert.deepEqual(lines[3], [["#+end_src", "meta"]]);
   assert.equal(lines[4][0][1], "heading1 processingInstruction");
+});
+
+test("a src block naming its language is left to that language", () => {
+  const lines = tokens("#+begin_src nix :tangle x.nix\n{ x = 1; }\n#+end_src\n#+begin_example\nplain\n#+end_example");
+  assert.deepEqual(lines[0], [["#+begin_src nix :tangle x.nix", "meta"]]);
+  assert.deepEqual(lines[1], [["{ x = 1; }", null]]);
+  assert.deepEqual(lines[4], [["plain", "monospace"]]);
 });
 
 test("a heading ends an unclosed block, as in Org", () => {

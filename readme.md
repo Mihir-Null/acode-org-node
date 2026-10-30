@@ -1,8 +1,8 @@
 # Org-node for Acode
 
 Work with your [kittymacs](https://github.com/Mihir-Null/kittymacs) notes graph on Android: find, create and link
-[org-node](https://github.com/meedstrom/org-node) notes, see their backlinks, and edit Org files with highlighting and
-folding, inside the [Acode](https://acode.app) editor.
+[org-node](https://github.com/meedstrom/org-node) notes, see what links to them and what they link to, and edit Org
+files with highlighting, folding and coloured src blocks, inside the [Acode](https://acode.app) editor.
 
 It reads and writes exactly what kittymacs does, so a repository such as EmptyNet can go from your desktop to your phone
 and back with `git` and nothing to convert:
@@ -58,9 +58,11 @@ After a `git pull` in Termux, switch back to Acode: the graph re-reads the files
 ## Use it
 
 Everything is in Acode's command palette as **Org-node: …**. The same letters as kittymacs' `SPC n` keys are bound to
-`Alt-Shift-<letter>` for a hardware keyboard. On a touch screen, two more ways in:
+`Alt-Shift-<letter>` for a hardware keyboard. On a touch screen, three more ways in:
 
-- the **Org-node** sidebar app (the three-dot graph icon) shows the backlinks of the note you are in, with **Find**,
+- the **Link** button on the editor's right edge, shown while an Org file is open: tap it to insert a link (select
+  some words first to make them the link's text);
+- the **Org-node** sidebar app (the three-dot graph icon) shows the links of the note you are in, with **Find**,
   **New**, **Tags** and **Rescan** buttons at the top;
 - **long-press** in an Org file: the selection menu has **Link note** and **Open link**.
 
@@ -70,7 +72,7 @@ Everything is in Acode's command palette as **Org-node: …**. The same letters 
 | Org-node: Insert link to note          | `SPC n i` | `Alt-Shift-I` | insert `[[id:…][…]]`; selected text becomes the link's words        |
 | Org-node: Open link at cursor          | `RET`     | `Alt-Shift-O` | open the note an `id:` link points to (also `Ctrl`-click)           |
 | Org-node: New note in folder…          | `SPC n c` | `Alt-Shift-C` | create a note in a graph folder you choose                          |
-| Org-node: Show backlinks               | `SPC n b` | `Alt-Shift-B` | open the sidebar panel                                              |
+| Org-node: Show links                   | `SPC n b` | `Alt-Shift-B` | open the sidebar panel: links to and from this note                 |
 | Org-node: Find note by tag             | `SPC n t` | `Alt-Shift-T` | choose a tag (with its note count), then a note                     |
 | Org-node: List tags and their notes    | `SPC n T` |               | an Org buffer with each tag and links to its notes                  |
 | Org-node: Rescan graph                 | `SPC n s` | `Alt-Shift-S` | read every file again and say what the graph holds                  |
@@ -84,11 +86,20 @@ a tag, in any order. Tags are written `#tag`, and a word starting with `!` must 
 - `#decision` lists the notes tagged `decision`;
 - `#nixos !#machine` lists the `nixos` notes without `machine`.
 
-**Backlinks** follow the cursor: the panel shows the nearest heading with an ID above it (or the file's note), each
-note linking to it, and the line around each link. Tap a line to open it there.
+**The links panel** follows the cursor. It is about the nearest heading with an ID above it, or the file's note, and
+lists:
+
+- **Links to here**: each note linking to it, with the line around each link; tap a line to open it there;
+- **Links from here**: each note it links to, read from the editor's text, so a link you just typed counts before you
+  save; tap a title to open that note, or a line to go to the link. A link to an ID no note has is shown in red.
 
 **Org files** get highlighting (headings by level, TODO keywords, tags, links, timestamps, emphasis, blocks, drawers)
 and folding: a heading folds its subtree, a drawer or a block folds to its end.
+
+**Src blocks** are coloured in their own language, by whichever language modes your Acode has: its built-in ones and
+any a language plugin adds. Org's names are mapped to Acode's (`emacs-lisp` → `.el`, `sh` → `.sh`, `python` → `.py`,
+`nix`, `rust`, `haskell`, …). A block in a language Acode does not know stays plain. This is Org's own
+`org-src-fontify-natively`, done with Acode's modes instead of Emacs' major modes.
 
 ## How the graph is found
 
@@ -117,7 +128,7 @@ only the files that changed. **Rescan** reads everything again.
 - New notes are file notes in the folder's root, as `SPC n f` makes them; there are no capture templates, refiling or
   extraction.
 - No `ROAM_REFS` lookups, unlinked references or org-roam database; the agenda and Org QL stay in Emacs.
-- Highlighting is line-based: it does not colour code inside `#+begin_src` blocks by language.
+- Language servers are not attached to src blocks; their code is coloured, not completed or checked.
 
 ## Develop
 

@@ -171,3 +171,18 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+.org-node-bl-section {
+  margin: 14px 0 0;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-color, #444);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.org-node-bl-group.missing h4 {
+  color: var(--error-text-color, #e66);
+  cursor: default;
+}
