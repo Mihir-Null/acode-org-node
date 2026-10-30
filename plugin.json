@@ -1,6 +1,6 @@
 {
   "id": "mihirnull.org-node",
-  "name": "Org-node",
+  "name": "Org-node: Org mode notes & backlinks",
   "main": "main.js",
   "version": "0.2.0",
   "readme": "readme.md",

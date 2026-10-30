@@ -1,4 +1,4 @@
-# Org-node for Acode
+# Org-node: Org mode notes & backlinks
 
 Linked Org mode notes on Android: find, create and link notes, see what links to each one and what it links to, and
 edit Org files with highlighting, folding and src blocks coloured in their own language, inside the
@@ -15,6 +15,13 @@ nothing to convert:
 - the **graph** is your notes folder plus every repository whose `.dir-locals.el` sets `kittymacs-org-node-project`;
 - a **new note** is `the-note-title.org`, starting with `:ID:`, `:CREATED:` and `#+title:`, as `SPC n f` makes it.
 
+| Find a note, narrowed by a tag | A note's links, and its Emacs Lisp coloured as Lisp |
+|---|---|
+| ![The note picker, filtered to notes tagged #decision](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/find.png) | ![An Org note with a coloured emacs-lisp block above the links panel, listing two notes that link here and one it links to](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/links.png) |
+
+*Rendered from kittymacs' own chapters in the plugin's test harness, with the One Dark theme; in Acode the panel is
+the sidebar and the colours are your theme's.*
+
 ## Contents
 
 - [Install](#install)
@@ -26,7 +33,8 @@ nothing to convert:
 
 ## Install
 
-**From the plugin store:** in Acode, open **Settings → Plugins**, search for **Org-node**, and install it.
+**From the plugin store:** in Acode, open **Settings → Plugins**, search for **Org-node** (or "org mode"), and
+install it.
 
 **From source**, for a version not yet in the store: Org-node needs a current Acode, with the CodeMirror editor and the native file index: versionCode 1002 or newer
 (Acode's **About** page shows it; 1.13.5 is 1011).
@@ -148,6 +156,9 @@ ORG_NODE_TEST_REPOS=~/src/kittymacs:~/src/EmptyNet npm test   # also index real 
 The smoke test drives the built plugin in Chromium against a stand-in for Acode; it needs
 [Playwright](https://playwright.dev) (`npm install --no-save playwright && npx playwright install chromium`) and is
 skipped without it.
+
+`test/smoke/screenshots.mjs` renders the screenshots above from a kittymacs checkout; its first lines say how to run
+it.
 
 [docs/how-it-works.md](docs/how-it-works.md) walks through the design: the parser, the `.dir-locals.el` reader, Android
 storage URLs, the index and its cache, and how the tests are split.

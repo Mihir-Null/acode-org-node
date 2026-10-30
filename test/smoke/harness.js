@@ -131,7 +131,8 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
             languageSlot.of(await extensionsFor(this.mode)),
             readOnlySlot.of(EditorState.readOnly.of(readOnly)),
             // What an Acode theme provides: colours for the highlight tags.
-            language.syntaxHighlighting(language.defaultHighlightStyle),
+            // A script may set window.__editorTheme (the screenshots do).
+            ...(window.__editorTheme ?? [language.syntaxHighlighting(language.defaultHighlightStyle)]),
             EditorView.lineWrapping,
           ],
         });
