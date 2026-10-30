@@ -152,13 +152,13 @@ for (const useFileIndex of [false, true]) {
       return keyword?.className && comment?.className && keyword.className !== comment.className;
     });
 
-    // The Link button shows in Org files only, and opens the link picker.
-    assert.equal(await h(() => window.harness.sideButtons.length), 1);
-    assert.equal(await h(() => window.harness.sideButtons[0].shown), true);
+    // The Link and Org buttons show in Org files only; Link opens the picker.
+    const shown = () => h(() => window.harness.sideButtons.map((b) => `${b.text}:${b.shown}`).join(" "));
+    assert.equal(await shown(), "Link:true Org:true");
     await h(() => window.harness.open("file:///sd/EmptyNet/notes.txt"));
-    assert.equal(await h(() => window.harness.sideButtons[0].shown), false);
+    assert.equal(await shown(), "Link:false Org:false");
     await h(() => window.harness.open("file:///sd/EmptyNet/wiki/flakes.org"));
-    assert.equal(await h(() => window.harness.sideButtons[0].shown), true);
+    assert.equal(await shown(), "Link:true Org:true");
     h(() => window.harness.sideButtons[0].onclick());
     await page.waitForSelector(".org-node-picker-input");
     assert.equal(await page.getAttribute(".org-node-picker-input", "placeholder"), "Link to note");
@@ -205,15 +205,23 @@ for (const useFileIndex of [false, true]) {
     assert.match(await page.textContent(".org-node-picker-row:last-child"), /Create “loop”/);
     await page.keyboard.press("Escape");
 
-    // Create a note by typing a new title; it lands in the notes folder.
+    // Create a note by typing a new title; it lands in the graph folder of
+    // the file you are in (EmptyNet, for loop.org).
     h(() => window.harness.run("org-node.find"));
     await page.fill(".org-node-picker-input", "Löb's Theorem #math");
     await page.waitForSelector(".org-node-picker-row.create.active");
     await page.press(".org-node-picker-input", "Enter");
-    await page.waitForFunction(() => window.harness.activeUri() === "file:///sd/notes/lobs-theorem.org");
-    const created = await h(() => window.harness.fsData.get("file:///sd/notes/lobs-theorem.org"));
+    await page.waitForFunction(() => window.harness.activeUri() === "file:///sd/EmptyNet/lobs-theorem.org");
+    const created = await h(() => window.harness.fsData.get("file:///sd/EmptyNet/lobs-theorem.org"));
     assert.match(created, /^:PROPERTIES:\n:ID: {7}[0-9a-f-]{36}\n:CREATED: {2}\[\d{4}-\d\d-\d\d \w{3} \d\d:\d\d\]\n:END:\n#\+title: Löb's Theorem\n$/);
     assert.equal(await nodeCount(page), 5);
+
+    // From a file in no graph folder, a new note goes to the notes folder.
+    await h(() => window.acode.newEditorFile("scratch.txt", { text: "", render: true }));
+    h(() => window.harness.run("org-node.find"));
+    await page.fill(".org-node-picker-input", "Loose end");
+    await page.press(".org-node-picker-input", "Enter");
+    await page.waitForFunction(() => window.harness.activeUri() === "file:///sd/notes/loose-end.org");
 
     // Tags: choose #concept, then a note carrying it.
     await h(() => window.harness.answers.select.push("concept"));
@@ -243,13 +251,119 @@ for (const useFileIndex of [false, true]) {
     // The cache is written, and restores the graph in a new session.
     await page.waitForFunction(() => window.harness.fsData.has("file:///cache/org-node.json"), null, { timeout: 5000 });
 
+    // Org's keys on a heading: Shift-Right cycles TODO, Alt-Down moves the
+    // subtree; off a heading, Alt-Down is left to the editor.
+    await h(() => window.harness.open("file:///sd/EmptyNet/wiki/loop.org"));
+    const loopLine = (n) => h((i) => window.harness.editor.state.doc.line(i).text, n);
+    await h(() => {
+      const { editor } = window.harness;
+      editor.dispatch({ selection: { anchor: editor.state.doc.line(10).from + 3 } });
+      editor.focus();
+    });
+    await page.keyboard.press("Shift+ArrowRight");
+    assert.equal(await loopLine(10), "* TODO Tangling :decision:");
+    await page.keyboard.press("Alt+ArrowDown");
+    assert.equal(await loopLine(10), "* Rebuilding");
+    assert.equal(await h(() => window.harness.cursorLine()), 12); // moved with its subtree
+    assert.equal(await loopLine(13), "* TODO Tangling :decision:");
+    await page.keyboard.press("Control+z"); // one undoable change each
+    assert.equal(await loopLine(10), "* TODO Tangling :decision:");
+
+    // The Org button's menu: demote, then the preview.
+    await h(() => window.harness.answers.select.push("demote"));
+    await h(() => window.harness.sideButtons.find((b) => b.text === "Org").onclick());
+    await page.waitForFunction(() => window.harness.editor.state.doc.line(10).text === "** TODO Tangling :decision:");
+    await h(() => window.harness.answers.select.push("preview"));
+    await h(() => window.harness.sideButtons.find((b) => b.text === "Org").onclick());
+    await page.waitForFunction(() => window.harness.editorManager.activeFile?.filename === "loop.org · preview");
+    // Unsaved edits show; the link has the note's title; src blocks go to codeHighlight.
+    const preview = page.locator(".custom-tab .org-preview");
+    await preview.locator("h3.org-heading", { hasText: "Tangling" }).waitFor();
+    assert.match(await preview.locator("h1").textContent(), /The loop/);
+    assert.equal(await preview.locator(".org-todo").textContent(), "TODO");
+    assert.equal(await preview.locator("a.org-id").first().textContent(), "flakes");
+    assert.equal(await shown(), "Link:false Org:false");
+    // Tapping a heading opens the source there; tapping a link opens the note.
+    await preview.locator("h3.org-heading").click();
+    await page.waitForFunction(() => window.harness.activeUri()?.endsWith("loop.org") && window.harness.cursorLine() === 9);
+    await h(() => window.harness.run("org.preview"));
+    await page.locator(".custom-tab a.org-id").first().click();
+    await page.waitForFunction(() => window.harness.activeUri()?.endsWith("flakes.org"));
+    // Flakes has a src block: its preview hands it to Acode's highlighter.
+    await h(() => window.harness.run("org.preview"));
+    await page.waitForFunction(() => window.harness.editorManager.activeFile?.filename === "flakes.org · preview");
+    assert.equal(await page.locator(".custom-tab .tok-test").last().getAttribute("data-lang"), "js");
+    assert.equal(await h(() => window.harness.editorManager.files.filter((f) => f.type === "custom").length), 2);
+
     // Unmounting removes what the plugin added.
     await h(() => window.harness.unmount());
     assert.equal(await h(() => window.harness.commands.size), 0);
     assert.equal(await h(() => window.harness.sidebar.size), 0);
-    assert.equal(await h(() => window.harness.sideButtons[0].shown), false);
+    assert.equal(await shown(), "Link:false Org:false");
     assert.ok(!(await h(() => window.harness.languages.has("org"))));
     assert.deepEqual(errors, []);
     await page.close();
   });
 }
+
+test("an open git repository joins the graph by itself", { skip: !chromium && "playwright not installed" }, async () => {
+  const page = await browser.newPage();
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error));
+  await page.route("http://acode.test/", (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html><html><body></body></html>" }));
+  await page.goto("http://acode.test/");
+  await page.addScriptTag({ content: harnessJs });
+  const REPO = "file:///sd/scratch";
+  await page.evaluate(
+    (setup) => window.setupAcode(setup),
+    {
+      files: {
+        [`${REPO}/.git/HEAD`]: "ref: refs/heads/main\n",
+        [`${REPO}/ideas.org`]: ":PROPERTIES:\n:ID: 55555555-5555-4555-8555-555555555555\n:END:\n#+title: Ideas\n",
+        [`${REPO}/README.org`]: "#+title: No ID, so not a note\n* TODO A task [/]\n** TODO one\n",
+        "file:///sd/plain/other.org": ":PROPERTIES:\n:ID: 66666666-6666-4666-8666-666666666666\n:END:\n#+title: Not in a repository\n",
+      },
+      folders: [
+        { url: REPO, title: "scratch" },
+        { url: "file:///sd/plain", title: "plain" },
+      ],
+      settings: {},
+      useFileIndex: false,
+    },
+  );
+  await page.addScriptTag({ content: pluginJs });
+  await page.evaluate(() => window.harness.init());
+  const h = (fn, ...args) => page.evaluate(fn, ...args);
+
+  await h(() => window.__orgNodePlugin.reindex());
+  // The repository is in the graph; the plain folder, with no .git and no
+  // .dir-locals.el, is not; and nothing asked for a notes folder.
+  assert.deepEqual(await h(() => window.__orgNodePlugin.graph.nodes.map((n) => n.title)), ["Ideas"]);
+  assert.match((await h(() => window.harness.log.toasts)).join("\n"), /Notes graph includes scratch/);
+  assert.doesNotMatch((await h(() => window.harness.log.toasts)).join("\n"), /No notes yet/);
+
+  // A new note goes into the repository of the file you are in.
+  await h(() => window.harness.open("file:///sd/scratch/README.org"));
+  h(() => window.harness.run("org-node.find"));
+  await page.fill(".org-node-picker-input", "Fresh thought");
+  await page.press(".org-node-picker-input", "Enter");
+  await page.waitForFunction(() => window.harness.activeUri() === "file:///sd/scratch/fresh-thought.org");
+
+  // Org editing works in any Org file, note or not: the TODO cookie follows.
+  await h(() => window.harness.open("file:///sd/scratch/README.org"));
+  await h(() => {
+    const { editor } = window.harness;
+    editor.dispatch({ selection: { anchor: editor.state.doc.line(3).from } });
+  });
+  await h(() => window.harness.run("org.todo-next")); // one: TODO -> NEXT
+  await h(() => window.harness.run("org.todo-next")); // NEXT -> WAITING
+  await h(() => window.harness.run("org.todo-next")); // WAITING -> DONE
+  assert.equal(await h(() => window.harness.editor.state.doc.line(2).text), "* TODO A task [1/1]");
+
+  // Settings: the notes folder is chosen with Acode's folder browser, not typed.
+  const notesSetting = await h(() => window.harness.settingsPage.list.find((item) => item.key === "notesFolder"));
+  assert.equal(notesSetting.folder, true);
+  assert.equal(notesSetting.prompt, undefined);
+  assert.deepEqual(errors, []);
+  await page.close();
+});

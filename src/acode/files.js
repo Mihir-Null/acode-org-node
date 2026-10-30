@@ -46,6 +46,15 @@ export async function readDirLocals(env, rootUrl) {
   }
 }
 
+/** Whether the folder at ROOT is a git repository: it has a .git. */
+export async function isGitRepo(env, rootUrl) {
+  try {
+    return await env.fs(env.join(rootUrl, ".git")).exists();
+  } catch {
+    return false;
+  }
+}
+
 async function listWithIndex(env, root) {
   const { fileIndex } = env;
   if (!env.isOpenFolder(root.url) && !env.scanned.has(root.url)) {

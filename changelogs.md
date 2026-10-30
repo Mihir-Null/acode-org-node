@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+- **Any Org file** can be previewed: *Org: Preview* (`Alt-Shift-P`, or the Org button) renders it in a tab, unsaved
+  edits included; tap a heading to go to it, or a link to follow it.
+- **Org's structure editing** on any Org file: cycle TODO (`Shift-→`/`Shift-←` on a heading), toggle checkboxes,
+  new heading (`Ctrl-Enter`), promote, demote and move headings and subtrees (`Alt` + arrows on a heading), with
+  statistics cookies kept up to date; an **Org** button opens all of them as a menu.
+- **Open git repositories join the graph** by themselves, with no notes folder or `.dir-locals.el` needed, and new
+  notes go into the repository of the file you are in.
+- The **Notes folder** setting opens Acode's folder browser instead of asking for a URL, and is optional.
+
 ## 0.2.0
 
 - The links panel shows forward links too: the notes this one links to, from the editor's unsaved text, with links

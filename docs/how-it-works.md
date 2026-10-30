@@ -14,12 +14,15 @@ src/
     notes.js       slugs, UUIDs, timestamps, new-note text, id: link text
     match.js       Orderless-style matching and ranking
     graph.js       every parsed file -> notes by ID, backlinks, tags
+    render.js      an Org file -> HTML, for the preview
+    edit.js        Org's structure editing, as text-in, text-out functions
   acode/           the parts that touch Acode or the screen
     files.js       listing and reading files; the index and its cache
     picker.js      the search overlay
     backlinks.js   the sidebar panel: links to and from the note at the cursor
     orgmode.js     CodeMirror highlighting and folding for Org
     srcblocks.js   src blocks coloured by Acode's own language modes
+    preview.js     the preview tab
   main.js          lifecycle, settings, commands, events: the glue
 ```
 
@@ -153,6 +156,62 @@ Why not language servers? They provide completion, diagnostics and navigation fo
 comes from language modes. Attaching a server to a block would mean opening the block as a file of its own, as
 Emacs' `org-edit-special` (`C-c '`) does; that is a possible later feature.
 
+## Which folders make the graph (`main.js`, `acode/files.js`)
+
+On a phone the folder you are working in is the repository you opened in Acode's sidebar, so that is the graph:
+
+- every **open git repository**, recognised by its `.git` (`isGitRepo`), while it is open;
+- every folder whose `.dir-locals.el` sets `kittymacs-org-node-project`, remembered after it closes, as kittymacs
+  remembers projects (`#discoverFolders`);
+- a **notes folder**, only if you choose one. The setting is an Acode `folder` item, which opens Acode's own folder
+  browser and stores the folder's URL, so nobody types a URL.
+
+`#computeRoots` merges the three, each folder once. A new note goes to the graph folder of the file you are in, the
+deepest if folders nest (`#rootForNewNote`), else to the notes folder, else to a folder you choose.
+
+## Structure editing (`core/edit.js`)
+
+Each command is a function from the document's lines and the cursor's line to new lines and a new cursor, or null
+when it does not apply. None of them knows about an editor, which makes them easy to test and to reason about:
+
+- `cycleTodo` steps through the file's `#+todo:` sequence (or kittymacs' TODO NEXT WAITING | DONE CANCELED);
+- `toggleCheckbox` flips `[ ]` and `[X]`;
+- `shiftHeading` changes a heading's stars, or every heading's in its subtree; a level-1 heading is not promoted;
+- `moveSubtree` swaps the subtree with its sibling, found by scanning for the nearest heading at the same level
+  without crossing a shallower one;
+- `insertHeading` adds a heading after the subtree, before the blank lines that end it.
+
+After `cycleTodo` and `toggleCheckbox`, `updateCookies` rewrites `[n/m]` and `[p%]` on the heading concerned: the
+checked boxes of its section if it has any, else the child headings with a TODO keyword and how many are done.
+
+Turning new lines into an edit is `lineChange`: it trims the lines both versions share at the start and the end and
+replaces only what is left, as character offsets. `main.js` dispatches that one change, so CodeMirror's undo history
+gets one step per command and the rest of the document, its folds and its other cursors are left alone.
+
+The keys live in the Org language's own keymap, at high precedence. A heading key checks that the cursor is on a
+heading line and returns `false` otherwise, which in CodeMirror means "not handled": the key then reaches Acode's own
+binding, so `Alt-Up` still moves a line of text.
+
+## The preview (`core/render.js`, `acode/preview.js`)
+
+`renderOrg` walks the file once, line by line, deciding for each line what it starts: a heading, a drawer (skipped
+to its `:END:`), a block (to its `#+end_`), a table, a list, fixed-width text, a rule, a comment, or a paragraph.
+Lists are collected item by item with their indentation and then nested; continuation lines join the item above.
+Inline markup (links, emphasis, timestamps, footnotes) is one regular expression scanned left to right; emphasis
+counts only where Org's rules allow it, after a space or punctuation.
+
+Every piece of text is escaped before it becomes HTML, and only then wrapped in tags, so whatever a file contains can
+only ever be text in the preview.
+
+The preview tab is an Acode *custom* tab. Acode puts its content in a shadow root that adopts Acode's own stylesheet,
+so the theme's colours apply, and the plugin's stylesheet comes in through the tab's `stylesheets` option. Interactive
+elements carry data attributes (`data-line` on headings, `data-id` on note links, …), and one click listener on the
+preview reads them. Src blocks are coloured afterwards by `acode.require("codeHighlight")`, Acode's own static
+highlighter, when the build has it.
+
+The preview is drawn again from the file's current text whenever its tab is shown and whenever the file is saved;
+the text comes from the open editor when there is one (`EditorFile.session` is its live state), so unsaved edits show.
+
 ## The glue (`main.js`)
 
 - **Lifecycle.** `acode.setPluginInit` runs `init`; `setPluginUnmount` runs `destroy`, which removes every command,
@@ -176,7 +235,10 @@ Emacs' `org-edit-special` (`C-c '`) does; that is a possible later feature.
 | `test/real-repos.test.js` | Node     | real checkouts: every `:ID:` line is a note, every UUID link resolves      |
 | `test/orgmode.test.js`    | Node     | the highlighter's tokens and the fold ranges                                |
 | `test/srcblocks.test.js`  | Node     | finding src blocks, mapping Org language names, resolving Acode's modes    |
-| `test/smoke.test.js`      | Chromium | the built plugin against a stand-in Acode: find, create, link, follow, both links sections, src-block colours, the Link button, tags, folding, unmount |
+| `test/render.test.js`     | Node     | the preview's HTML: headings, inline markup and escaping, lists, tables, blocks |
+| `test/edit.test.js`       | Node     | each structure edit, statistics cookies, and `lineChange` applying back exactly |
+| `test/manifest.test.js`   | Node     | `plugin.json` against acode.app's rules                                     |
+| `test/smoke.test.js`      | Chromium | the built plugin against a stand-in Acode: find, create, link, follow, both links sections, src-block colours, the buttons, Org keys and undo, the Org menu, the preview, tags, folding, git repositories joining, unmount |
 
 `test/smoke/harness.js` is that stand-in. It implements only the parts of Acode's API the plugin calls, over an
 in-memory file system, with a real CodeMirror editor. It is a model of Acode, not Acode, so the first run on a phone

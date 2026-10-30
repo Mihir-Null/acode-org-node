@@ -184,6 +184,8 @@ export function foldLinesAt(line, lineCount, index) {
  *   link; return true when handled
  * @param {import("./srcblocks.js").LanguageResolver} [hooks.resolver] when
  *   given, src blocks are highlighted in their own languages
+ * @param {Array<{key: string, run: (view) => boolean}>} [hooks.keymap]
+ *   CodeMirror key bindings for Org files
  */
 export function orgExtensions(cm, hooks = {}) {
   const { StreamLanguage, foldService } = cm.language;
@@ -199,6 +201,10 @@ export function orgExtensions(cm, hooks = {}) {
     }),
   ];
   if (hooks.resolver) extensions.push(srcBlockHighlighting(cm, hooks.resolver));
+  // Org's structure-editing keys.  High precedence, so that on a heading
+  // Alt-Up moves the subtree; a binding that returns false (not on a
+  // heading) lets the key fall through to Acode's own, such as moving a line.
+  if (hooks.keymap?.length) extensions.push(cm.state.Prec.high(cm.view.keymap.of(hooks.keymap)));
   if (hooks.onLinkClick) {
     extensions.push(
       EditorView.domEventHandlers({

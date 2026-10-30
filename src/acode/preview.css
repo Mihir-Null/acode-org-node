@@ -1,0 +1,181 @@
+/* The preview tab.  It lives in a shadow root that adopts Acode's own
+   stylesheet, so the theme's variables are available here. */
+
+.org-preview {
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 16px 48px;
+  font-family: var(--app-font-family, sans-serif);
+  line-height: 1.55;
+  color: var(--primary-text-color, #ddd);
+  background: var(--primary-color, #1e1f22);
+  user-select: text;
+}
+
+.org-preview .org-title {
+  font-size: 1.6rem;
+  margin: 0 0 4px;
+}
+
+.org-preview .org-subtitle,
+.org-preview .org-author,
+.org-preview .org-date {
+  margin: 0;
+  opacity: 0.7;
+}
+
+.org-preview .org-heading {
+  margin: 1.2em 0 0.3em;
+  cursor: pointer;
+}
+
+.org-preview h2.org-heading { font-size: 1.35rem; }
+.org-preview h3.org-heading { font-size: 1.18rem; }
+.org-preview h4.org-heading,
+.org-preview h5.org-heading,
+.org-preview h6.org-heading { font-size: 1.05rem; }
+
+.org-preview .org-todo {
+  font-size: 0.75em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #fff;
+  background: var(--error-text-color, #c0392b);
+  vertical-align: middle;
+}
+
+.org-preview .org-todo.done {
+  background: var(--active-color, #2f7d6d);
+}
+
+.org-preview .org-priority {
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+.org-preview .org-tags span {
+  font-size: 0.7em;
+  font-weight: 400;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, #555);
+  opacity: 0.85;
+}
+
+.org-preview .org-planning,
+.org-preview .org-timestamp {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.org-preview .org-link {
+  color: var(--link-text-color, var(--active-color, #4aa3df));
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.org-preview .org-link.missing {
+  color: var(--error-text-color, #e66);
+  text-decoration-style: dashed;
+}
+
+.org-preview .org-other {
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+.org-preview code {
+  font-family: monospace;
+  font-size: 0.92em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--secondary-color, rgba(127, 127, 127, 0.15));
+}
+
+.org-preview pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--secondary-color, rgba(127, 127, 127, 0.12));
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.org-preview pre code {
+  padding: 0;
+  background: none;
+}
+
+.org-preview figure.org-src {
+  margin: 0.8em 0;
+}
+
+.org-preview figure.org-src figcaption {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  margin-bottom: 2px;
+}
+
+.org-preview blockquote {
+  margin: 0.8em 0;
+  padding: 0 12px;
+  border-left: 3px solid var(--border-color, #555);
+  opacity: 0.9;
+}
+
+.org-preview .org-center {
+  text-align: center;
+}
+
+.org-preview ul,
+.org-preview ol {
+  padding-left: 1.4em;
+}
+
+.org-preview li.task {
+  list-style: none;
+  margin-left: -1.2em;
+}
+
+.org-preview .org-checkbox {
+  font-size: 1.05em;
+}
+
+.org-preview dt {
+  font-weight: 600;
+}
+
+.org-preview dd {
+  margin: 0 0 0.4em 1.2em;
+}
+
+.org-preview table.org-table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+
+.org-preview table.org-table th,
+.org-preview table.org-table td {
+  border: 1px solid var(--border-color, #555);
+  padding: 4px 8px;
+}
+
+.org-preview hr {
+  border: none;
+  border-top: 1px solid var(--border-color, #555);
+}
+
+.org-preview .org-preview-error,
+.org-preview .org-preview-empty {
+  opacity: 0.7;
+}
+
+/* Keys and code in a table cell stay on one line: "SPC n f", not "SPC n" / "f". */
+.org-preview table.org-table code {
+  white-space: nowrap;
+}
