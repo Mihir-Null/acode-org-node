@@ -1,6 +1,7 @@
 // Screenshots for the readme: the built plugin in the test harness, on a
 // kittymacs checkout (public, so its notes may appear in a public readme),
-// with CodeMirror's One Dark theme and a Lisp mode standing in for Acode's.
+// with CodeMirror's One Dark theme and a Lisp mode standing in for Acode's
+// (and a Lisp highlighter standing in for its codeHighlight, for the preview).
 //
 //   npm install --no-save @codemirror/theme-one-dark @codemirror/legacy-modes playwright
 //   npm run build
@@ -34,8 +35,22 @@ const harness = esbuild.buildSync({
       import { oneDark } from "@codemirror/theme-one-dark";
       import { StreamLanguage } from "@codemirror/language";
       import { commonLisp } from "@codemirror/legacy-modes/mode/commonlisp";
+      import { classHighlighter, highlightCode } from "@lezer/highlight";
       import "./harness.js";
       window.__editorTheme = [oneDark];
+      // Acode's static highlighter for the preview, for Lisp, in One Dark's colours.
+      const lisp = StreamLanguage.define(commonLisp);
+      const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+      window.__codeHighlight = async (code, lang) => {
+        if (!/lisp/.test(lang)) return esc(code);
+        let out = "";
+        highlightCode(code, lisp.parser.parse(code), classHighlighter,
+          (text, classes) => (out += classes ? '<span class="' + classes + '">' + esc(text) + "</span>" : esc(text)),
+          () => (out += "\\n"));
+        return out;
+      };
+      window.__highlightCss = ".tok-keyword{color:#c678dd}.tok-string{color:#98c379}.tok-atom,.tok-bool,.tok-number{color:#d19a66}" +
+        ".tok-variableName{color:#e06c75}.tok-comment{color:#7f848e;font-style:italic}.tok-meta,.tok-punctuation{color:#abb2bf}";
       window.addLispMode = (languages) =>
         languages.set("commonlisp", { name: "commonlisp", extensions: ["el", "lisp"], caption: "Lisp",
           languageExtension: () => StreamLanguage.define(commonLisp) });`,
@@ -53,6 +68,7 @@ const page_ = `<!doctype html><html><head><style>
   #editor { height: 50vh; overflow: hidden; border-bottom: 1px solid #3e4451; }
   #editor .cm-editor { height: 100%; font-size: 13px; }
   [data-app] { height: 50vh; overflow: hidden; background:#21252b; }
+  .custom-tab { position: fixed; inset: 0; z-index: 5; background: #21252b; --primary-color: #21252b; }
 </style></head><body></body></html>`;
 
 const browser = await chromium.launch();
@@ -107,5 +123,13 @@ await page.fill(".org-node-picker-input", "#decision");
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${out}/find.png` });
 await page.keyboard.press("Escape");
+
+// The preview of kittymacs' org-node chapter.
+await page.evaluate(async () => {
+  await window.harness.open("file:///sdcard/kittymacs/literate/71-org-node.org");
+  window.harness.run("org.preview");
+});
+await page.waitForTimeout(800);
+await page.screenshot({ path: `${out}/preview.png` });
 
 await browser.close();

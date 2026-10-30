@@ -2,24 +2,29 @@
 //
 // This file is the glue between Acode and the pure modules in core/:
 //
-//   - which folders make up the graph (your notes folder, plus each open
-//     folder whose .dir-locals.el sets kittymacs-org-node-project);
+//   - which folders make up the graph: every git repository open in Acode's
+//     sidebar, every folder whose .dir-locals.el sets
+//     kittymacs-org-node-project (remembered), and a notes folder if you
+//     choose one;
 //   - keeping the index current (files.js), from a cache at startup, after
 //     every save, and whenever the app comes back to the foreground;
-//   - the commands, the selection-menu items, the backlinks sidebar and the
-//     Org editor mode.
+//   - the commands, the selection-menu items, the links sidebar, the Org
+//     editor mode with its structure editing, and the preview.
 //
-// Every command is in Acode's command palette as "Org-node: ...".
+// Every command is in Acode's command palette, as "Org-node: ..." for the
+// notes graph and "Org: ..." for editing and previewing any Org file.
 
 import plugin from "../plugin.json";
 import { Graph } from "./core/graph.js";
 import { findIdLinks, idAtLine, parseOrg } from "./core/org.js";
+import { cycleTodo, insertHeading, lineChange, moveSubtree, offsetOf, shiftHeading, toggleCheckbox } from "./core/edit.js";
 import { makeIdLink, newId, newNoteText, titleToFileName } from "./core/notes.js";
 import { baseName, isNoteFileName, relativePath } from "./core/paths.js";
 import { BacklinksPanel } from "./acode/backlinks.js";
-import { Indexer, readDirLocals } from "./acode/files.js";
+import { Indexer, isGitRepo, readDirLocals } from "./acode/files.js";
 import { orgExtensions } from "./acode/orgmode.js";
 import { pickNode } from "./acode/picker.js";
+import { PreviewManager } from "./acode/preview.js";
 import { LanguageResolver } from "./acode/srcblocks.js";
 import styles from "./styles.css";
 
@@ -28,7 +33,7 @@ const SIDEBAR_ID = "org-node";
 const ICON = "org-node-icon";
 const DEFAULTS = { notesFolder: "", notesExcluded: "", followProjects: true, highlight: true, linkButton: true };
 const NO_FOLDER_MESSAGE =
-  "No notes folder yet: run “Org-node: Set notes folder”, or open a project whose .dir-locals.el sets kittymacs-org-node-project";
+  "No notes yet: open a git repository in Acode's sidebar, or choose a notes folder in Org-node's settings";
 
 // A small graph-node glyph, drawn in the theme's text colour (monochrome).
 const ICON_SVG =
@@ -47,6 +52,10 @@ class OrgNodePlugin {
   #indexedOnce = false;
   #live = { doc: null, parsed: null };
   #previousOrgMode = null;
+  /** The open git repositories in the graph, found by #discoverFolders. */
+  #openRepos = [];
+  /** Folders announced this session, so each is announced once. */
+  #announced = new Set();
 
   get settings() {
     return this.appSettings.value[plugin.id];
@@ -80,8 +89,14 @@ class OrgNodePlugin {
     this.#registerCommands();
     this.#registerSelectionMenu();
     this.#registerSidebar();
+    this.preview = new PreviewManager({
+      resolveId: (id) => this.graph.get(id),
+      openAt: (url, line) => this.openAt(url, line),
+      openId: (id) => this.openId(id),
+      openFile: (from, path) => this.openRelative(from, path),
+    });
     this.#registerOrgMode();
-    this.#registerLinkButton();
+    this.#registerOrgButtons();
     this.#listen();
 
     // Show the cached graph at once; refresh it from disk shortly after, so
@@ -107,6 +122,7 @@ class OrgNodePlugin {
     this.#listeners = [];
     acode.require("sidebarApps").remove(SIDEBAR_ID);
     this.linkButton?.hide();
+    this.orgButton?.hide();
     const languages = acode.require("editorLanguages");
     languages.unregister("org");
     if (this.#previousOrgMode) languages.register(...this.#previousOrgMode);
@@ -133,36 +149,44 @@ class OrgNodePlugin {
     }
   }
 
-  /** Remember each open folder whose .dir-locals.el says it is a project. */
-  async #discoverProjects({ quiet = true } = {}) {
-    if (!this.settings.followProjects) return;
-    const projects = this.#projects();
-    let changed = false;
-    for (const folder of this.addedFolder()) {
-      const locals = await readDirLocals(this.indexer.env, folder.url);
-      if (!locals?.project) continue;
-      const known = projects[folder.url];
-      if (known && JSON.stringify(known) === JSON.stringify(locals.excluded)) continue;
-      projects[folder.url] = locals.excluded;
-      changed = true;
-      if (!quiet) toast(`Notes graph includes ${folder.title ?? baseName(folder.url)}; indexing it`);
+  /**
+   * Look at the folders open in the sidebar.  A folder whose .dir-locals.el
+   * sets kittymacs-org-node-project joins the graph and is remembered, as
+   * kittymacs remembers projects.  Any other git repository joins while it
+   * is open, leaving out the folders its .dir-locals.el excludes, if any.
+   */
+  async #discoverFolders() {
+    const repos = [];
+    if (this.settings.followProjects) {
+      const projects = this.#projects();
+      let changed = false;
+      for (const folder of this.addedFolder()) {
+        const locals = await readDirLocals(this.indexer.env, folder.url);
+        if (locals?.project) {
+          if (JSON.stringify(projects[folder.url]) !== JSON.stringify(locals.excluded)) {
+            projects[folder.url] = locals.excluded;
+            changed = true;
+          }
+        } else if (await isGitRepo(this.indexer.env, folder.url)) {
+          repos.push({ url: folder.url, excluded: locals?.excluded ?? [], kind: "repo" });
+        }
+      }
+      if (changed) this.#saveProjects(projects);
     }
-    if (changed) this.#saveProjects(projects);
+    this.#openRepos = repos;
   }
 
   #computeRoots() {
     const roots = [];
+    const add = (root) => {
+      if (!roots.some((other) => other.url === root.url)) roots.push(root);
+    };
     const { notesFolder, notesExcluded } = this.settings;
     if (notesFolder) {
-      roots.push({
-        url: notesFolder,
-        excluded: notesExcluded.split(",").map((dir) => dir.trim()).filter(Boolean),
-        kind: "notes",
-      });
+      add({ url: notesFolder, excluded: notesExcluded.split(",").map((dir) => dir.trim()).filter(Boolean), kind: "notes" });
     }
-    for (const [url, excluded] of Object.entries(this.#projects())) {
-      if (!roots.some((root) => root.url === url)) roots.push({ url, excluded, kind: "project" });
-    }
+    for (const [url, excluded] of Object.entries(this.#projects())) add({ url, excluded, kind: "project" });
+    for (const repo of this.#openRepos) add(repo);
     this.roots = roots;
     return roots;
   }
@@ -176,8 +200,15 @@ class OrgNodePlugin {
 
   /** Read the graph again: changed files only, or every file when FULL. */
   async reindex({ full = false, quiet = false } = {}) {
-    await this.#discoverProjects({ quiet });
+    await this.#discoverFolders();
     const roots = this.#computeRoots();
+    // Say when a folder joins, once a session; the silent index at startup
+    // says nothing about the folders already there.
+    for (const root of roots) {
+      if (this.#announced.has(root.url)) continue;
+      this.#announced.add(root.url);
+      if ((this.#indexedOnce || !quiet) && root.kind !== "notes") toast(`Notes graph includes ${this.rootTitle(root.url)}`);
+    }
     if (!roots.length) {
       this.graph.clear();
       this.panel?.setStatus("");
@@ -278,6 +309,15 @@ class OrgNodePlugin {
     return this.roots.find((root) => root.url === url) ?? null;
   }
 
+  /**
+   * Where a new note goes: the graph folder of the file you are in (the
+   * repository you are working in), else the notes folder, else one you
+   * choose.
+   */
+  async #rootForNewNote() {
+    return this.#rootOfActiveFile() ?? this.roots.find((root) => root.kind === "notes") ?? (await this.chooseRoot());
+  }
+
   /** The graph folder holding the active file, the deepest if they nest. */
   #rootOfActiveFile() {
     const uri = editorManager.activeFile?.uri;
@@ -318,6 +358,118 @@ class OrgNodePlugin {
     }
   }
 
+  /** Open the note with ID, re-reading the graph once if it is not known. */
+  async openId(id) {
+    let node = this.graph.get(id);
+    if (!node && (await this.ensureIndexed())) {
+      await this.reindex({ quiet: true });
+      node = this.graph.get(id);
+    }
+    if (node) await this.openNode(node);
+    else toast(`No note has the ID ${id}`, 4000);
+  }
+
+  /** Open a file: link's PATH, relative to the file at FROM. */
+  async openRelative(from, path) {
+    const folder = from.slice(0, from.length - baseName(from).length).replace(/\/$/, "");
+    const url = /^[a-z]+:\/\//i.test(path) ? path : path.startsWith("/") ? `file://${path}` : this.Url.join(folder, path);
+    if (!(await this.fsOperation(url).exists().catch(() => false))) return toast(`No file at ${path}`);
+    await this.openAt(url, 0);
+  }
+
+  // ------------------------------------------------------------------
+  // Org editing and preview, for any Org file
+
+  /**
+   * Apply EDIT, one of core/edit.js's commands, at the cursor of the active
+   * Org file, as one undoable change.  Returns whether it applied.
+   */
+  orgEdit(edit) {
+    const file = this.#activeOrgFile();
+    if (!file) {
+      toast("Org editing works in Org files");
+      return false;
+    }
+    const view = this.view;
+    const { state } = view;
+    if (state.readOnly) {
+      toast("This file is read-only");
+      return false;
+    }
+    const lines = state.doc.toString().split("\n");
+    const head = state.selection.main.head;
+    const line = state.doc.lineAt(head);
+    const result = edit(lines, line.number - 1);
+    if (!result) return false;
+    const change = lineChange(lines, result.lines);
+    const anchor = offsetOf(result.lines, result.line, result.col ?? head - line.from);
+    view.dispatch({ changes: change ?? [], selection: { anchor }, scrollIntoView: true, userEvent: "input" });
+    return true;
+  }
+
+  /** The Org edits, by name: commands, the Org menu and the keys use them. */
+  orgEdits = {
+    todoNext: { label: "Cycle TODO →", run: (lines, line) => cycleTodo(lines, line, 1) },
+    todoPrevious: { label: "Cycle TODO ←", run: (lines, line) => cycleTodo(lines, line, -1) },
+    checkbox: { label: "Toggle checkbox", run: toggleCheckbox },
+    insertHeading: { label: "New heading", run: insertHeading },
+    promote: { label: "Promote heading", run: (lines, line) => shiftHeading(lines, line, -1) },
+    demote: { label: "Demote heading", run: (lines, line) => shiftHeading(lines, line, 1) },
+    promoteSubtree: { label: "Promote subtree", run: (lines, line) => shiftHeading(lines, line, -1, { subtree: true }) },
+    demoteSubtree: { label: "Demote subtree", run: (lines, line) => shiftHeading(lines, line, 1, { subtree: true }) },
+    moveUp: { label: "Move subtree up", run: (lines, line) => moveSubtree(lines, line, -1) },
+    moveDown: { label: "Move subtree down", run: (lines, line) => moveSubtree(lines, line, 1) },
+  };
+
+  /** Run the Org edit NAME, saying so when it does not apply here. */
+  runOrgEdit(name) {
+    if (!this.orgEdit(this.orgEdits[name].run) && this.#activeOrgFile()) {
+      toast(/checkbox/i.test(name) ? "No checkbox on this line" : "Nothing to do here: no heading, or no sibling");
+    }
+  }
+
+  /** [Org] Preview the active Org file, or refresh the preview you are in. */
+  async previewOrg() {
+    const active = editorManager.activeFile;
+    const entry = this.preview.entryFor(active);
+    if (entry) return this.preview.render(entry);
+    if (!this.#activeOrgFile()) return toast("Open an Org file to preview it");
+    await this.preview.open(active);
+  }
+
+  /** The Org menu: every edit, and the preview, for a touch screen. */
+  async orgMenu() {
+    const items = [
+      ["preview", "Preview"],
+      ...Object.entries(this.orgEdits).map(([name, edit]) => [name, edit.label]),
+    ];
+    const choice = await acode.select("Org", items).catch(() => null);
+    if (!choice) return;
+    if (choice === "preview") await this.previewOrg();
+    else {
+      this.runOrgEdit(choice);
+      this.view.focus();
+    }
+  }
+
+  /** Org's keys in Org files; the ones for headings only act on a heading line. */
+  #orgKeymap() {
+    const onHeading = (view) => /^\*+[ \t]/.test(view.state.doc.lineAt(view.state.selection.main.head).text);
+    const headingKey = (key, name) => ({ key, run: (view) => onHeading(view) && this.orgEdit(this.orgEdits[name].run) });
+    return [
+      headingKey("Shift-ArrowRight", "todoNext"),
+      headingKey("Shift-ArrowLeft", "todoPrevious"),
+      headingKey("Alt-ArrowLeft", "promote"),
+      headingKey("Alt-ArrowRight", "demote"),
+      headingKey("Shift-Alt-ArrowLeft", "promoteSubtree"),
+      headingKey("Shift-Alt-ArrowRight", "demoteSubtree"),
+      headingKey("Alt-ArrowUp", "moveUp"),
+      headingKey("Alt-ArrowDown", "moveDown"),
+      { key: "Mod-Enter", run: () => this.orgEdit(this.orgEdits.insertHeading.run) },
+      { key: "Mod-Shift-Enter", run: () => this.orgEdit(this.orgEdits.checkbox.run) },
+    ];
+  }
+
   // ------------------------------------------------------------------
   // Commands (kittymacs' SPC n keys, in brackets)
 
@@ -326,10 +478,7 @@ class OrgNodePlugin {
     if (!(await this.ensureIndexed())) return;
     const choice = await this.pick({ placeholder: "Find or create a note", allowCreate: true });
     if (choice?.node) await this.openNode(choice.node);
-    else if (choice?.create) {
-      const notes = this.roots.find((root) => root.kind === "notes");
-      await this.createNote(choice.create, notes ?? (await this.chooseRoot()));
-    }
+    else if (choice?.create) await this.createNote(choice.create, await this.#rootForNewNote());
   }
 
   /** [SPC n i] Insert an id: link; selected text becomes its words. */
@@ -344,8 +493,7 @@ class OrgNodePlugin {
     if (!choice) return view.focus();
     let node = choice.node;
     if (!node) {
-      const notes = this.roots.find((root) => root.kind === "notes") ?? (await this.chooseRoot());
-      node = await this.createNote(choice.create, notes, { open: false });
+      node = await this.createNote(choice.create, await this.#rootForNewNote(), { open: false });
       if (!node) return;
     }
     if (editorManager.activeFile !== file) file.makeActive();
@@ -433,7 +581,9 @@ class OrgNodePlugin {
   async setNotesFolder() {
     const open = this.addedFolder().map((folder) => [folder.url, folder.title ?? baseName(folder.url)]);
     let url = await acode
-      .select("Notes folder", [...open, ["browse", "Browse…"], ["none", "None"]], { default: this.settings.notesFolder })
+      .select("Notes folder", [...open, ["browse", "Browse…"], ["none", "None: open git repositories only"]], {
+        default: this.settings.notesFolder,
+      })
       .catch(() => null);
     if (!url) return;
     if (url === "browse") url = (await acode.fileBrowser("folder", "Choose your notes folder").catch(() => null))?.url;
@@ -475,6 +625,14 @@ class OrgNodePlugin {
       { name: "org-node.rescan", description: "Org-node: Rescan graph", bindKey: "Alt-Shift-S", exec: run(this.rescan) },
       { name: "org-node.set-notes-folder", description: "Org-node: Set notes folder", exec: run(this.setNotesFolder) },
       { name: "org-node.forget-project", description: "Org-node: Forget project", exec: run(this.forgetProject) },
+      { name: "org.preview", description: "Org: Preview", bindKey: "Alt-Shift-P", exec: run(this.previewOrg) },
+      { name: "org.menu", description: "Org: Menu of editing commands", exec: run(this.orgMenu) },
+      // In Org files the editor also has Org's own keys for these (#orgKeymap).
+      ...Object.entries(this.orgEdits).map(([name, edit]) => ({
+        name: `org.${name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`,
+        description: `Org: ${edit.label.replace(/ [→←]$/, (m) => (m.includes("→") ? " forward" : " backward"))}`,
+        exec: run(() => this.runOrgEdit(name)),
+      })),
     ];
   }
 
@@ -540,6 +698,7 @@ class OrgNodePlugin {
     languages.register("org", ["org", "org_archive"], "Org", () =>
       orgExtensions(cm, {
         resolver,
+        keymap: this.#orgKeymap(),
         onCursor: () => this.panel?.refresh(),
         onLinkClick: (view, pos) => {
           if (!this.linkAt(view, pos)) return false;
@@ -552,25 +711,27 @@ class OrgNodePlugin {
   }
 
   /**
-   * A "Link" button on the editor's right edge while an Org file is open:
-   * one tap to insert a link, where the command palette takes three.
+   * Two buttons on the editor's right edge while an Org file is open: Link,
+   * one tap to insert a link where the command palette takes three; and Org,
+   * the menu of editing commands and the preview.
    */
-  #registerLinkButton() {
+  #registerOrgButtons() {
     if (!this.settings.linkButton) return;
     const SideButton = acode.require("sideButton");
     if (!SideButton) return;
-    this.linkButton = SideButton({
-      text: "Link",
-      icon: ICON,
-      onclick: () => this.insertLink().catch((error) => toast(`Org-node: ${error?.message ?? error}`)),
-    });
-    this.#updateLinkButton();
+    const guard = (fn) => () => fn().catch?.((error) => toast(`Org-node: ${error?.message ?? error}`));
+    this.linkButton = SideButton({ text: "Link", icon: ICON, onclick: guard(() => this.insertLink()) });
+    this.orgButton = SideButton({ text: "Org", icon: ICON, onclick: guard(() => this.orgMenu()) });
+    this.#updateOrgButtons();
   }
 
-  #updateLinkButton() {
-    if (!this.linkButton) return;
-    if (this.#activeOrgFile()) this.linkButton.show();
-    else this.linkButton.hide();
+  #updateOrgButtons() {
+    const show = Boolean(this.#activeOrgFile());
+    for (const button of [this.linkButton, this.orgButton]) {
+      if (!button) continue;
+      if (show) button.show();
+      else button.hide();
+    }
   }
 
   #on(target, event, fn) {
@@ -580,12 +741,17 @@ class OrgNodePlugin {
 
   #listen() {
     this.#on(editorManager, "switch-file", () => {
-      this.#updateLinkButton();
+      this.#updateOrgButtons();
       this.panel?.refresh();
+      // A preview is drawn again each time it is shown, so it is never stale.
+      const entry = this.preview.entryFor(editorManager.activeFile);
+      if (entry) this.preview.render(entry);
     });
     this.#on(editorManager, "save-file", async (file) => {
       file ??= editorManager.activeFile;
       if (!file?.uri || !isNoteFileName(file.filename ?? "")) return;
+      const preview = this.preview.previews.get(file.uri);
+      if (preview) this.preview.render(preview);
       const view = editorManager.activeFile === file ? this.view : null;
       const text = view ? view.state.doc.toString() : file.session?.doc?.toString?.();
       if (text == null) return;
@@ -609,12 +775,11 @@ function settingsPage(instance) {
     list: [
       {
         key: "notesFolder",
-        text: "Notes folder",
-        info: "Your notes folder, the graph’s first folder (kittymacs-org-node-directory). “Org-node: Set notes folder” picks one from your open folders.",
+        text: "Notes folder (optional)",
+        info: "A folder that is always in the graph, even when no repository is open (kittymacs-org-node-directory). Tap to choose one; “Org-node: Set notes folder” also offers your open folders, or none.",
         value: value.notesFolder,
-        valueText: (v) => (v ? baseName(v) : "not set"),
-        prompt: "Notes folder URL",
-        promptType: "text",
+        valueText: (v) => (v ? baseName(v) : "none: open git repositories only"),
+        folder: true,
       },
       {
         key: "notesExcluded",
@@ -626,14 +791,14 @@ function settingsPage(instance) {
       },
       {
         key: "followProjects",
-        text: "Add projects from .dir-locals.el",
-        info: "An open folder whose .dir-locals.el sets kittymacs-org-node-project joins the graph, and is remembered.",
+        text: "Open repositories join the graph",
+        info: "Every git repository open in Acode's sidebar is in the graph while it is open. A folder whose .dir-locals.el sets kittymacs-org-node-project joins too, and is remembered.",
         checkbox: value.followProjects,
       },
       {
         key: "linkButton",
-        text: "Link button in Org files",
-        info: "A Link button on the editor's right edge inserts a link to a note. Takes effect after restarting Acode.",
+        text: "Link and Org buttons in Org files",
+        info: "Buttons on the editor's right edge: Link inserts a link to a note; Org opens the editing commands and the preview. Takes effect after restarting Acode.",
         checkbox: value.linkButton,
       },
       {

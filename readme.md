@@ -1,23 +1,26 @@
 # Org-node: Org mode notes & backlinks
 
-Linked Org mode notes on Android: find, create and link notes, see what links to each one and what it links to, and
-edit Org files with highlighting, folding and src blocks coloured in their own language, inside the
-[Acode](https://acode.app) editor.
+Org mode on Android, inside the [Acode](https://acode.app) editor:
+
+- **any Org file**: highlighting, folding, src blocks coloured in their own language, a rendered **preview**, and
+  Org's structure editing (cycle TODO, toggle checkboxes, promote, demote and move subtrees, new headings);
+- **linked notes**: find, create and link notes, and see what links to each one and what it links to.
 
 It reads the notes [org-roam](https://www.orgroam.com) (v2) and [org-node](https://github.com/meedstrom/org-node)
-write in Emacs, files and headings with an `:ID:` linked by `[[id:…]]`, with no database to sync: point it at your
-notes folder and it builds the graph from the files themselves. It is made for
+write in Emacs, files and headings with an `:ID:` linked by `[[id:…]]`, with no database to sync: open a git
+repository in Acode and its notes are in the graph. It is made for
 [kittymacs](https://github.com/Mihir-Null/kittymacs), whose repositories join the graph by themselves, and writes
 new notes the way kittymacs does, so a repository can go from your desktop to your phone and back with `git` and
 nothing to convert:
 
 - a **note** is a file or heading with an `:ID:` property, linked to with `[[id:…][words]]`;
-- the **graph** is your notes folder plus every repository whose `.dir-locals.el` sets `kittymacs-org-node-project`;
+- the **graph** is every git repository open in Acode, every repository whose `.dir-locals.el` sets
+  `kittymacs-org-node-project`, and a notes folder if you choose one;
 - a **new note** is `the-note-title.org`, starting with `:ID:`, `:CREATED:` and `#+title:`, as `SPC n f` makes it.
 
-| Find a note, narrowed by a tag | A note's links, and its Emacs Lisp coloured as Lisp |
-|---|---|
-| ![The note picker, filtered to notes tagged #decision](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/find.png) | ![An Org note with a coloured emacs-lisp block above the links panel, listing two notes that link here and one it links to](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/links.png) |
+| Find a note, narrowed by a tag | A note's links, and its Emacs Lisp coloured as Lisp | The preview |
+|---|---|---|
+| ![The note picker, filtered to notes tagged #decision](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/find.png) | ![An Org note with a coloured emacs-lisp block above the links panel, listing two notes that link here and one it links to](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/links.png) | ![A kittymacs chapter rendered: title, headings with tags, a list, links and a coloured code block](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/preview.png) |
 
 *Rendered from kittymacs' own chapters in the plugin's test harness, with the One Dark theme; in Acode the panel is
 the sidebar and the colours are your theme's.*
@@ -63,19 +66,23 @@ install it.
 
 2. In Acode, **open the folder**: the sidebar's folder button, then pick **Termux** in Android's file picker (Termux
    offers its home folder there) and choose the repository. A clone under `~/storage/shared` works too.
-3. Org-node reads the repository's `.dir-locals.el`, sees the project flag, and adds it to the graph: a message says
-   *Notes graph includes EmptyNet*. It is remembered from then on, as kittymacs remembers projects.
-4. Optionally, open your own notes folder the same way and run **Org-node: Set notes folder**. New notes go there.
+3. A git repository joins the graph by itself while it is open: a message says *Notes graph includes EmptyNet*. A
+   repository whose `.dir-locals.el` sets the kittymacs project flag is also remembered after you close it, as
+   kittymacs remembers projects.
+4. Nothing else to set up. New notes go into the repository of the file you are in. If you want notes that belong to
+   no repository, choose a **Notes folder** in Org-node's settings (tap it to browse for a folder); new notes go
+   there when the file you are in is in no repository.
 
 After a `git pull` in Termux, switch back to Acode: the graph re-reads the files that changed.
 
 ## Use it
 
-Everything is in Acode's command palette as **Org-node: …**. The same letters as kittymacs' `SPC n` keys are bound to
-`Alt-Shift-<letter>` for a hardware keyboard. On a touch screen, three more ways in:
+Everything is in Acode's command palette: **Org-node: …** for the notes graph, **Org: …** for editing and previewing
+any Org file. The same letters as kittymacs' `SPC n` keys are bound to `Alt-Shift-<letter>` for a hardware keyboard.
+On a touch screen, more ways in:
 
-- the **Link** button on the editor's right edge, shown while an Org file is open: tap it to insert a link (select
-  some words first to make them the link's text);
+- two buttons on the editor's right edge while an Org file is open: **Link** inserts a link (select some words first
+  to make them the link's text), and **Org** opens a menu of the editing commands and the preview;
 - the **Org-node** sidebar app (the three-dot graph icon) shows the links of the note you are in, with **Find**,
   **New**, **Tags** and **Rescan** buttons at the top;
 - **long-press** in an Org file: the selection menu has **Link note** and **Open link**.
@@ -92,6 +99,30 @@ Everything is in Acode's command palette as **Org-node: …**. The same letters 
 | Org-node: Rescan graph                 | `SPC n s` | `Alt-Shift-S` | read every file again and say what the graph holds                  |
 | Org-node: Set notes folder             |           |               | choose your notes folder from the open folders, or browse           |
 | Org-node: Forget project               |           |               | take a remembered project out of the graph                          |
+
+**Any Org file**, note or not, can be edited the Org way and previewed. In an Org file the editor has Org's own keys;
+the ones for headings act only with the cursor on a heading line, and leave the key to Acode elsewhere (Alt-Up still
+moves a line of text):
+
+| Command                       | Org                         | Keys in Org files          | Does                                                     |
+|-------------------------------|-----------------------------|----------------------------|----------------------------------------------------------|
+| Org: Preview                  |                             | `Alt-Shift-P`              | the file rendered in a tab beside it                     |
+| Org: Cycle TODO forward / backward | `org-todo`             | `Shift-→` / `Shift-←`      | none → TODO → NEXT → WAITING → DONE → CANCELED → none     |
+| Org: Toggle checkbox          | `C-c C-c`                   | `Ctrl-Shift-Enter`         | `[ ]` ↔ `[X]` on the line                                |
+| Org: New heading              | `C-RET`                     | `Ctrl-Enter`               | a heading at this level, after this subtree              |
+| Org: Promote / Demote heading | `M-←` / `M-→`               | `Alt-←` / `Alt-→`          | one level up or down                                     |
+| Org: Promote / Demote subtree | `M-S-←` / `M-S-→`           | `Alt-Shift-←` / `Alt-Shift-→` | the heading and everything under it                   |
+| Org: Move subtree up / down   | `M-↑` / `M-↓`               | `Alt-↑` / `Alt-↓`          | past the sibling above or below                          |
+| Org: Menu of editing commands |                             |                            | all of the above, for a touch screen (the **Org** button) |
+
+The cursor may be anywhere in a section: the command acts on the heading the section belongs to. Statistics cookies
+follow, as in Org: `[1/3]` or `[33%]` on a heading counts the checkboxes under it, or its child headings that have a
+TODO keyword and how many are done. Each command is one change, so one undo reverts it.
+
+**The preview** renders the file as a reader sees it: the title, headings with their TODO keywords and tags,
+paragraphs, lists with checkboxes, tables, quotes and code, with property drawers and settings left out. It shows
+unsaved edits, and is drawn again each time you switch to it. Tap a heading to go to it in the file, an `id:` link to
+open that note, a web link to open the browser, a `file:` link to open the file.
 
 **Searching** works like kittymacs' Orderless prompt: every word must match the title, an alias (`ROAM_ALIASES`) or
 a tag, in any order. Tags are written `#tag`, and a word starting with `!` must not match:
@@ -117,7 +148,10 @@ any a language plugin adds. Org's names are mapped to Acode's (`emacs-lisp` → 
 
 ## How the graph is found
 
-- Your **notes folder** (the setting, or **Org-node: Set notes folder**), with the folders listed in *Folders to skip*.
+- Every **git repository** open in Acode's sidebar (a folder with a `.git`), while it is open. Turn this off with the
+  setting *Open repositories join the graph*.
+- Your **notes folder**, if you choose one: tap the setting to browse for a folder (or run **Org-node: Set notes
+  folder** to pick one of your open folders, or none). It skips the folders listed in *Folders to skip*.
 - Every **project**: a folder you open in Acode whose `.dir-locals.el` says, as EmptyNet's does,
 
   ```elisp
@@ -126,7 +160,8 @@ any a language plugin adds. Org's names are mapped to Acode's (`emacs-lisp` → 
   ```
 
   The file is read as data, never run. Projects are remembered, so they stay in the graph after the folder is closed;
-  **Org-node: Forget project** removes one.
+  **Org-node: Forget project** removes one. A repository's `.dir-locals.el` can also list folders to skip without the
+  project flag.
 - Inside each folder, files ending in `.org` or `.org_archive` are read, except under a folder or file whose name
   starts with `.` or `_`, the folders the project excludes, and upstream's `org-mem-exclude` paths
   (`node_modules`, `backup…`, sync conflicts).
@@ -138,9 +173,11 @@ only the files that changed. **Rescan** reads everything again.
 
 - The `.`/`_` rule applies only *inside* a graph folder; org-mem applies it to the whole path, which would hide
   anything under Termux's `/data/data/…`.
-- Only folders open in Acode are checked for a `.dir-locals.el`; kittymacs notices a project when you open any file in it.
-- New notes are file notes in the folder's root, as `SPC n f` makes them; there are no capture templates, refiling or
-  extraction.
+- Any open git repository is in the graph, not only those with the project flag; and only folders open in Acode are
+  checked, where kittymacs notices a project when you open any file in it.
+- New notes are file notes in the root of the repository you are in (kittymacs puts `SPC n f`'s in the notes folder);
+  there are no capture templates, refiling or extraction.
+- Structure editing covers the common commands above; tables, lists and the agenda are edited as text.
 - No `ROAM_REFS` lookups, unlinked references or org-roam database; the agenda and Org QL stay in Emacs.
 - Language servers are not attached to src blocks; their code is coloured, not completed or checked.
 

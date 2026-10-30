@@ -4,6 +4,7 @@
 // It is bundled with the real @codemirror packages and loaded into Chromium
 // before build/main.js, the same bundle Acode would load.
 
+import { history, historyKeymap } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import * as language from "@codemirror/language";
 import * as lezerHighlight from "@lezer/highlight";
@@ -115,14 +116,30 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
   };
 
   class EditorFile {
-    constructor(filename, { uri, text, readOnly = false } = {}) {
+    constructor(filename, { uri, text, readOnly = false, type = "editor", content, stylesheets, highlightStyles } = {}) {
       this.id = `file-${openFiles.length}`;
       this.filename = filename;
       this.uri = uri;
+      this.type = type;
       this.loaded = false;
       this.mode = modeFor(filename);
       this.readOnly = readOnly;
+      this.handlers = {};
       openFiles.push(this);
+      if (type === "custom") {
+        // Like Acode: the content goes into a shadow root, with the tab's styles.
+        this.host = document.createElement("div");
+        this.host.className = "custom-tab";
+        const shadow = this.host.attachShadow({ mode: "open" });
+        const style = document.createElement("style");
+        // highlightStyles adopts Acode's highlight colours; the screenshots set some.
+        style.textContent = [...[].concat(stylesheets ?? []), highlightStyles ? (window.__highlightCss ?? "") : ""].join("\n");
+        shadow.append(style, content);
+        document.body.append(this.host);
+        this.loaded = true;
+        this.ready = Promise.resolve();
+        return;
+      }
       this.ready = (async () => {
         // harness.loadDelay makes loading slow, as Android storage can be.
         if (window.harness?.loadDelay) await new Promise((resolve) => setTimeout(resolve, window.harness.loadDelay));
@@ -136,6 +153,9 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
             // A script may set window.__editorTheme (the screenshots do).
             ...(window.__editorTheme ?? [language.syntaxHighlighting(language.defaultHighlightStyle)]),
             EditorView.lineWrapping,
+            // Undo, as Acode's editor has it.
+            history(),
+            view.keymap.of(historyKeymap),
           ],
         });
         this.loaded = true;
@@ -148,10 +168,23 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
         return;
       }
       if (activeFile === this) return;
-      if (activeFile) activeFile.state = editor.state;
+      if (activeFile && activeFile.type !== "custom") activeFile.state = editor.state;
       activeFile = this;
-      editor.setState(this.state);
+      if (this.type !== "custom") editor.setState(this.state);
       emit("switch-file", this);
+    }
+    // Acode's EditorFile.session is the file's state, live while it is active.
+    get session() {
+      return activeFile === this ? editor.state : this.state;
+    }
+    on(event, fn) {
+      (this.handlers[event] ??= []).push(fn);
+    }
+    remove() {
+      openFiles.splice(openFiles.indexOf(this), 1);
+      this.host?.remove();
+      for (const fn of this.handlers.close ?? []) fn();
+      if (activeFile === this) activeFile = null;
     }
     async setMode(mode) {
       this.mode = mode;
@@ -221,6 +254,15 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
       return button;
     },
     codemirror: { language, state, view, lezer: lezerHighlight },
+    // Acode's static highlighter, reduced to marking what it was asked for
+    // (the screenshots put a real one in window.__codeHighlight).
+    codehighlight: {
+      HIGHLIGHT_CLASS: "cm-highlighted",
+      highlightCodeBlock: async (code, lang) =>
+        window.__codeHighlight
+          ? window.__codeHighlight(code, lang)
+          : `<span class="tok-test" data-lang="${lang}">${code.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c])}</span>`,
+    },
   };
 
   window.editorManager = editorManager;
