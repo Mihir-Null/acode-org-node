@@ -6,6 +6,7 @@
   to missing IDs marked.
 - Code in src blocks is coloured in its own language, by the language modes Acode already has.
 - A **Link** button on the editor's edge in Org files inserts a link in one tap (setting: *Link button in Org files*).
+- Ready for the plugin store: search keywords, a source link, and a release workflow that publishes to acode.app.
 
 ## 0.1.0
 

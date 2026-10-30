@@ -9,10 +9,24 @@
   "minVersionCode": 1002,
   "price": 0,
   "license": "GPL-3.0-or-later",
-  "keywords": ["org", "org-mode", "org-node", "org-roam", "notes", "zettelkasten", "kittymacs"],
+  "keywords": [
+    "org",
+    "org-mode",
+    "orgmode",
+    "org-roam",
+    "org-node",
+    "notes",
+    "backlinks",
+    "zettelkasten",
+    "wiki",
+    "knowledge-base",
+    "emacs",
+    "kittymacs"
+  ],
   "changelogs": "changelogs.md",
   "author": {
     "name": "Mihir",
     "github": "Mihir-Null"
-  }
+  },
+  "repository": "https://github.com/Mihir-Null/acode-org-node"
 }

@@ -1,11 +1,15 @@
 # Org-node for Acode
 
-Work with your [kittymacs](https://github.com/Mihir-Null/kittymacs) notes graph on Android: find, create and link
-[org-node](https://github.com/meedstrom/org-node) notes, see what links to them and what they link to, and edit Org
-files with highlighting, folding and coloured src blocks, inside the [Acode](https://acode.app) editor.
+Linked Org mode notes on Android: find, create and link notes, see what links to each one and what it links to, and
+edit Org files with highlighting, folding and src blocks coloured in their own language, inside the
+[Acode](https://acode.app) editor.
 
-It reads and writes exactly what kittymacs does, so a repository such as EmptyNet can go from your desktop to your phone
-and back with `git` and nothing to convert:
+It reads the notes [org-roam](https://www.orgroam.com) (v2) and [org-node](https://github.com/meedstrom/org-node)
+write in Emacs, files and headings with an `:ID:` linked by `[[id:…]]`, with no database to sync: point it at your
+notes folder and it builds the graph from the files themselves. It is made for
+[kittymacs](https://github.com/Mihir-Null/kittymacs), whose repositories join the graph by themselves, and writes
+new notes the way kittymacs does, so a repository can go from your desktop to your phone and back with `git` and
+nothing to convert:
 
 - a **note** is a file or heading with an `:ID:` property, linked to with `[[id:…][words]]`;
 - the **graph** is your notes folder plus every repository whose `.dir-locals.el` sets `kittymacs-org-node-project`;
@@ -22,7 +26,9 @@ and back with `git` and nothing to convert:
 
 ## Install
 
-Org-node needs a current Acode, with the CodeMirror editor and the native file index: versionCode 1002 or newer
+**From the plugin store:** in Acode, open **Settings → Plugins**, search for **Org-node**, and install it.
+
+**From source**, for a version not yet in the store: Org-node needs a current Acode, with the CodeMirror editor and the native file index: versionCode 1002 or newer
 (Acode's **About** page shows it; 1.13.5 is 1011).
 
 1. Build the plugin, on a computer or in Termux (`pkg install nodejs git`):
@@ -145,6 +151,16 @@ skipped without it.
 
 [docs/how-it-works.md](docs/how-it-works.md) walks through the design: the parser, the `.dir-locals.el` reader, Android
 storage URLs, the index and its cache, and how the tests are split.
+
+## Release
+
+1. Raise `version` in `plugin.json` (acode.app refuses a version that is not greater) and add a section to
+   `changelogs.md`, which becomes the store's changelog.
+2. Merge to `main`, then publish a GitHub release tagged `vX.Y.Z`. The *Publish* workflow builds `dist/plugin.zip`,
+   attaches it to the release, and uploads it to acode.app with the `ACODE_API_KEY` secret, an acode.app
+   [API key](https://acode.app/api-keys) with the *Publish updates* permission for this plugin.
+
+The very first version is submitted once by hand at acode.app, and an admin approves it before it is listed.
 
 ## Licence
 
