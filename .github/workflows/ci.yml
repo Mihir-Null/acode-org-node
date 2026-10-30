@@ -21,18 +21,14 @@ jobs:
       # The smoke test drives the plugin in Chromium; Playwright is not a
       # dependency of the plugin itself.
       - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
-      # Index real kittymacs repositories as well.
+      # Index a real kittymacs repository as well (EmptyNet is private).
       - uses: actions/checkout@v4
         with:
           repository: Mihir-Null/kittymacs
           path: repos/kittymacs
-      - uses: actions/checkout@v4
-        with:
-          repository: Mihir-Null/EmptyNet
-          path: repos/EmptyNet
       - run: npm test
         env:
-          ORG_NODE_TEST_REPOS: repos/kittymacs:repos/EmptyNet
+          ORG_NODE_TEST_REPOS: repos/kittymacs
       - uses: actions/upload-artifact@v4
         with:
           name: plugin
