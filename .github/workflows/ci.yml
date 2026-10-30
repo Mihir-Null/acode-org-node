@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The smoke test drives the plugin in Chromium; Playwright is not a
+      # dependency of the plugin itself.
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      # Index real kittymacs repositories as well.
+      - uses: actions/checkout@v4
+        with:
+          repository: Mihir-Null/kittymacs
+          path: repos/kittymacs
+      - uses: actions/checkout@v4
+        with:
+          repository: Mihir-Null/EmptyNet
+          path: repos/EmptyNet
+      - run: npm test
+        env:
+          ORG_NODE_TEST_REPOS: repos/kittymacs:repos/EmptyNet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: dist/plugin.zip

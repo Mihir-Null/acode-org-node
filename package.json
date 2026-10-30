@@ -1,0 +1,20 @@
+{
+  "name": "acode-org-node",
+  "version": "1.0.0",
+  "description": "kittymacs' org-node notes graph for the Acode editor on Android",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "test": "node build.mjs && node --test test/*.test.js"
+  },
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "esbuild": "^0.25.10"
+  },
+  "type": "module",
+  "private": true
+}

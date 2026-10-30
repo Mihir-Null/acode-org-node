@@ -1,0 +1,18 @@
+{
+  "id": "mihirnull.org-node",
+  "name": "Org-node",
+  "main": "main.js",
+  "version": "0.1.0",
+  "readme": "readme.md",
+  "icon": "icon.png",
+  "files": [],
+  "minVersionCode": 1002,
+  "price": 0,
+  "license": "GPL-3.0-or-later",
+  "keywords": ["org", "org-mode", "org-node", "org-roam", "notes", "zettelkasten", "kittymacs"],
+  "changelogs": "changelogs.md",
+  "author": {
+    "name": "Mihir",
+    "github": "Mihir-Null"
+  }
+}
