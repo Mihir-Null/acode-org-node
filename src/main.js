@@ -247,16 +247,22 @@ class OrgNodePlugin {
 
   /** Open URL with the cursor on LINE (0-based), or at the end. */
   async openAt(url, line, { end = false } = {}) {
+    // Loading can take a while on Android storage, and the person may move
+    // on meanwhile: to another file, or into a picker or dialog.  Note where
+    // focus is now, and leave both alone if they changed.
+    const focusedAtStart = document.activeElement;
     let file = editorManager.getFile(url, "uri");
     if (file) file.makeActive();
     else file = acode.newEditorFile(baseName(url), { uri: url, render: true });
     for (let waited = 0; !file.loaded && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50));
+    if (editorManager.activeFile !== file) return;
     const view = this.view;
     const { doc } = view.state;
     const pos = end ? doc.length : doc.line(Math.min(Math.max(line + 1, 1), doc.lines)).from;
     const { EditorView } = acode.require("codemirror").view;
     view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 48 }) });
-    view.focus();
+    const focused = document.activeElement;
+    if (focused === focusedAtStart || focused === document.body || !focused || view.dom.contains(focused)) view.focus();
   }
 
   openNode = (node) => this.openAt(node.url, node.line);

@@ -87,6 +87,27 @@ for (const useFileIndex of [false, true]) {
     // notes folder is not, so the plugin asks for one scan of it.
     if (useFileIndex) assert.deepEqual(await h(() => window.harness.log.scans), [NOTES]);
 
+    // A note still loading must not take the keyboard back from a picker
+    // opened meanwhile: typing goes to the picker, not into the note.
+    await h(() => (window.harness.loadDelay = 500));
+    h(() => window.harness.run("org-node.find"));
+    await page.fill(".org-node-picker-input", "inbox");
+    await page.waitForFunction(() => document.querySelector(".org-node-picker-row.active")?.textContent.includes("Inbox"));
+    await page.press(".org-node-picker-input", "Enter");
+    h(() => window.harness.run("org-node.find"));
+    await page.fill(".org-node-picker-input", "tan");
+    await page.waitForFunction(() => window.harness.activeUri()?.endsWith("inbox.org"));
+    await page.waitForTimeout(300); // openAt finishes after the load
+    await page.keyboard.type("gl"); // still typing in the picker
+    assert.equal(await page.inputValue(".org-node-picker-input"), "tangl");
+    assert.equal(
+      await h(() => window.harness.editor.state.doc.toString()),
+      await h(() => window.harness.fsData.get("file:///sd/notes/inbox.org")),
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(".org-node-picker").count(), 0);
+    await h(() => (window.harness.loadDelay = 0));
+
     // Find: "#nix" narrows to Flakes; Enter opens it at its line.
     h(() => window.harness.run("org-node.find"));
     await page.fill(".org-node-picker-input", "#nix");

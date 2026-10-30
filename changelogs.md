@@ -8,6 +8,8 @@
 - A **Link** button on the editor's edge in Org files inserts a link in one tap (setting: *Link button in Org files*).
 - Ready for the plugin store: named *Org-node: Org mode notes & backlinks* so that searching "org mode" finds it,
   search keywords, screenshots, a source link, and a release workflow that publishes to acode.app.
+- Opening a note no longer takes the keyboard back from a search opened while the note was still loading, which
+  could type the search into the note.
 - The plugin id is `mihirnull.org_node`: acode.app accepts only letters, digits, dots and underscores. A copy
   installed from an earlier zip (id `mihirnull.org-node`) is a different plugin to Acode: uninstall it first.
 
