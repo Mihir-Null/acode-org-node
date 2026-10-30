@@ -1,15 +1,26 @@
-# Org-node for Acode
+# Org-node: Org mode notes & backlinks
 
-Work with your [kittymacs](https://github.com/Mihir-Null/kittymacs) notes graph on Android: find, create and link
-[org-node](https://github.com/meedstrom/org-node) notes, see their backlinks, and edit Org files with highlighting and
-folding, inside the [Acode](https://acode.app) editor.
+Linked Org mode notes on Android: find, create and link notes, see what links to each one and what it links to, and
+edit Org files with highlighting, folding and src blocks coloured in their own language, inside the
+[Acode](https://acode.app) editor.
 
-It reads and writes exactly what kittymacs does, so a repository such as EmptyNet can go from your desktop to your phone
-and back with `git` and nothing to convert:
+It reads the notes [org-roam](https://www.orgroam.com) (v2) and [org-node](https://github.com/meedstrom/org-node)
+write in Emacs, files and headings with an `:ID:` linked by `[[id:…]]`, with no database to sync: point it at your
+notes folder and it builds the graph from the files themselves. It is made for
+[kittymacs](https://github.com/Mihir-Null/kittymacs), whose repositories join the graph by themselves, and writes
+new notes the way kittymacs does, so a repository can go from your desktop to your phone and back with `git` and
+nothing to convert:
 
 - a **note** is a file or heading with an `:ID:` property, linked to with `[[id:…][words]]`;
 - the **graph** is your notes folder plus every repository whose `.dir-locals.el` sets `kittymacs-org-node-project`;
 - a **new note** is `the-note-title.org`, starting with `:ID:`, `:CREATED:` and `#+title:`, as `SPC n f` makes it.
+
+| Find a note, narrowed by a tag | A note's links, and its Emacs Lisp coloured as Lisp |
+|---|---|
+| ![The note picker, filtered to notes tagged #decision](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/find.png) | ![An Org note with a coloured emacs-lisp block above the links panel, listing two notes that link here and one it links to](https://raw.githubusercontent.com/Mihir-Null/acode-org-node/main/docs/screenshots/links.png) |
+
+*Rendered from kittymacs' own chapters in the plugin's test harness, with the One Dark theme; in Acode the panel is
+the sidebar and the colours are your theme's.*
 
 ## Contents
 
@@ -22,7 +33,10 @@ and back with `git` and nothing to convert:
 
 ## Install
 
-Org-node needs a current Acode, with the CodeMirror editor and the native file index: versionCode 1002 or newer
+**From the plugin store:** in Acode, open **Settings → Plugins**, search for **Org-node** (or "org mode"), and
+install it.
+
+**From source**, for a version not yet in the store: Org-node needs a current Acode, with the CodeMirror editor and the native file index: versionCode 1002 or newer
 (Acode's **About** page shows it; 1.13.5 is 1011).
 
 1. Build the plugin, on a computer or in Termux (`pkg install nodejs git`):
@@ -58,9 +72,11 @@ After a `git pull` in Termux, switch back to Acode: the graph re-reads the files
 ## Use it
 
 Everything is in Acode's command palette as **Org-node: …**. The same letters as kittymacs' `SPC n` keys are bound to
-`Alt-Shift-<letter>` for a hardware keyboard. On a touch screen, two more ways in:
+`Alt-Shift-<letter>` for a hardware keyboard. On a touch screen, three more ways in:
 
-- the **Org-node** sidebar app (the three-dot graph icon) shows the backlinks of the note you are in, with **Find**,
+- the **Link** button on the editor's right edge, shown while an Org file is open: tap it to insert a link (select
+  some words first to make them the link's text);
+- the **Org-node** sidebar app (the three-dot graph icon) shows the links of the note you are in, with **Find**,
   **New**, **Tags** and **Rescan** buttons at the top;
 - **long-press** in an Org file: the selection menu has **Link note** and **Open link**.
 
@@ -70,7 +86,7 @@ Everything is in Acode's command palette as **Org-node: …**. The same letters 
 | Org-node: Insert link to note          | `SPC n i` | `Alt-Shift-I` | insert `[[id:…][…]]`; selected text becomes the link's words        |
 | Org-node: Open link at cursor          | `RET`     | `Alt-Shift-O` | open the note an `id:` link points to (also `Ctrl`-click)           |
 | Org-node: New note in folder…          | `SPC n c` | `Alt-Shift-C` | create a note in a graph folder you choose                          |
-| Org-node: Show backlinks               | `SPC n b` | `Alt-Shift-B` | open the sidebar panel                                              |
+| Org-node: Show links                   | `SPC n b` | `Alt-Shift-B` | open the sidebar panel: links to and from this note                 |
 | Org-node: Find note by tag             | `SPC n t` | `Alt-Shift-T` | choose a tag (with its note count), then a note                     |
 | Org-node: List tags and their notes    | `SPC n T` |               | an Org buffer with each tag and links to its notes                  |
 | Org-node: Rescan graph                 | `SPC n s` | `Alt-Shift-S` | read every file again and say what the graph holds                  |
@@ -84,11 +100,20 @@ a tag, in any order. Tags are written `#tag`, and a word starting with `!` must 
 - `#decision` lists the notes tagged `decision`;
 - `#nixos !#machine` lists the `nixos` notes without `machine`.
 
-**Backlinks** follow the cursor: the panel shows the nearest heading with an ID above it (or the file's note), each
-note linking to it, and the line around each link. Tap a line to open it there.
+**The links panel** follows the cursor. It is about the nearest heading with an ID above it, or the file's note, and
+lists:
+
+- **Links to here**: each note linking to it, with the line around each link; tap a line to open it there;
+- **Links from here**: each note it links to, read from the editor's text, so a link you just typed counts before you
+  save; tap a title to open that note, or a line to go to the link. A link to an ID no note has is shown in red.
 
 **Org files** get highlighting (headings by level, TODO keywords, tags, links, timestamps, emphasis, blocks, drawers)
 and folding: a heading folds its subtree, a drawer or a block folds to its end.
+
+**Src blocks** are coloured in their own language, by whichever language modes your Acode has: its built-in ones and
+any a language plugin adds. Org's names are mapped to Acode's (`emacs-lisp` → `.el`, `sh` → `.sh`, `python` → `.py`,
+`nix`, `rust`, `haskell`, …). A block in a language Acode does not know stays plain. This is Org's own
+`org-src-fontify-natively`, done with Acode's modes instead of Emacs' major modes.
 
 ## How the graph is found
 
@@ -117,7 +142,7 @@ only the files that changed. **Rescan** reads everything again.
 - New notes are file notes in the folder's root, as `SPC n f` makes them; there are no capture templates, refiling or
   extraction.
 - No `ROAM_REFS` lookups, unlinked references or org-roam database; the agenda and Org QL stay in Emacs.
-- Highlighting is line-based: it does not colour code inside `#+begin_src` blocks by language.
+- Language servers are not attached to src blocks; their code is coloured, not completed or checked.
 
 ## Develop
 
@@ -132,8 +157,21 @@ The smoke test drives the built plugin in Chromium against a stand-in for Acode;
 [Playwright](https://playwright.dev) (`npm install --no-save playwright && npx playwright install chromium`) and is
 skipped without it.
 
+`test/smoke/screenshots.mjs` renders the screenshots above from a kittymacs checkout; its first lines say how to run
+it.
+
 [docs/how-it-works.md](docs/how-it-works.md) walks through the design: the parser, the `.dir-locals.el` reader, Android
 storage URLs, the index and its cache, and how the tests are split.
+
+## Release
+
+1. Raise `version` in `plugin.json` (acode.app refuses a version that is not greater) and add a section to
+   `changelogs.md`, which becomes the store's changelog.
+2. Merge to `main`, then publish a GitHub release tagged `vX.Y.Z`. The *Publish* workflow builds `dist/plugin.zip`,
+   attaches it to the release, and uploads it to acode.app with the `ACODE_API_KEY` secret, an acode.app
+   [API key](https://acode.app/api-keys) with the *Publish updates* permission for this plugin.
+
+The very first version is submitted once by hand at acode.app, and an admin approves it before it is listed.
 
 ## Licence
 

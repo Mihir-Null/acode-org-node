@@ -104,11 +104,44 @@ for (const useFileIndex of [false, true]) {
     await page.waitForFunction(() => window.harness.activeUri()?.endsWith("loop.org"));
     await page.waitForFunction(() => window.harness.cursorLine() === 9);
 
-    // Backlinks follow the cursor: on "Tangling", Flakes links here.
+    // The panel follows the cursor: on "Tangling", Flakes links here, and
+    // Tangling links to Flakes.
     await h(() => window.harness.sidebar.get("org-node").onSelected());
     await page.waitForFunction(() => document.querySelector("[data-app=org-node] h3")?.textContent === "Tangling");
-    assert.match(await page.textContent("[data-app=org-node]"), /Flakes[\s\S]*tangling step/);
-    assert.match(await page.textContent("[data-app=org-node]"), /1 backlink\b/);
+    const panel = async () => (await page.textContent("[data-app=org-node]")).replace(/\s+/g, " ");
+    assert.match(await panel(), /Links to here 1 Flakes wiki\/flakes\.org .*tangling step.* Links from here 1 Flakes wiki\/flakes\.org Org blocks become Nix files; see flakes\./);
+    // Tapping the forward link's title opens Flakes; on its file note, it
+    // links to two notes, and a link typed but not saved counts at once.
+    await page.click("[data-app=org-node] section:last-of-type h4");
+    await page.waitForFunction(() => window.harness.activeUri()?.endsWith("flakes.org"));
+    await page.waitForFunction(() => document.querySelector("[data-app=org-node] h3")?.textContent === "Flakes");
+    assert.match(await panel(), /Links from here 2 The loop .* Tangling /);
+    await h(() => {
+      const { editor } = window.harness;
+      editor.dispatch({ changes: { from: editor.state.doc.length, insert: "\nSee [[id:44444444-4444-4444-8444-444444444444][my inbox]] and [[id:no-such-id][a ghost]].\n" } });
+    });
+    await page.waitForFunction(() => document.querySelector("[data-app=org-node]").textContent.includes("No note has the ID no-such-id"));
+    assert.match(await panel(), /Links from here 4 .*Inbox .*my inbox/);
+
+    // Code in a src block is coloured by Acode's JavaScript mode.
+    await page.waitForFunction(() => {
+      const line = [...document.querySelectorAll(".cm-line")].find((el) => el.textContent.startsWith("const answer"));
+      const keyword = line && [...line.querySelectorAll("span")].find((span) => span.textContent === "const");
+      const comment = line && [...line.querySelectorAll("span")].find((span) => span.textContent === "// the answer");
+      return keyword?.className && comment?.className && keyword.className !== comment.className;
+    });
+
+    // The Link button shows in Org files only, and opens the link picker.
+    assert.equal(await h(() => window.harness.sideButtons.length), 1);
+    assert.equal(await h(() => window.harness.sideButtons[0].shown), true);
+    await h(() => window.harness.open("file:///sd/EmptyNet/notes.txt"));
+    assert.equal(await h(() => window.harness.sideButtons[0].shown), false);
+    await h(() => window.harness.open("file:///sd/EmptyNet/wiki/flakes.org"));
+    assert.equal(await h(() => window.harness.sideButtons[0].shown), true);
+    h(() => window.harness.sideButtons[0].onclick());
+    await page.waitForSelector(".org-node-picker-input");
+    assert.equal(await page.getAttribute(".org-node-picker-input", "placeholder"), "Link to note");
+    await page.keyboard.press("Escape");
 
     // Insert link: the selection becomes the link's words.
     await h(() => window.harness.open(`${"file:///sd/notes"}/inbox.org`));
@@ -193,6 +226,7 @@ for (const useFileIndex of [false, true]) {
     await h(() => window.harness.unmount());
     assert.equal(await h(() => window.harness.commands.size), 0);
     assert.equal(await h(() => window.harness.sidebar.size), 0);
+    assert.equal(await h(() => window.harness.sideButtons[0].shown), false);
     assert.ok(!(await h(() => window.harness.languages.has("org"))));
     assert.deepEqual(errors, []);
     await page.close();

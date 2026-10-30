@@ -105,6 +105,21 @@ export class Graph {
     return [...groups.values()].sort((a, b) => titleOf(a).localeCompare(titleOf(b)));
   }
 
+  /**
+   * The notes LINKS point to, grouped by target in the order first linked:
+   * [{id, to (the note, or null when no note has that ID), links}].
+   * LINKS are parsed links, usually those whose origin is the current note;
+   * the panel passes the editor's live parse, so unsaved links count.
+   */
+  forwardLinks(links) {
+    const groups = new Map();
+    for (const link of links) {
+      if (!groups.has(link.target)) groups.set(link.target, { id: link.target, to: this.get(link.target), links: [] });
+      groups.get(link.target).links.push(link);
+    }
+    return [...groups.values()];
+  }
+
   /** The ID of the note at LINE (0-based) of the file at URL, if indexed. */
   idAt(url, line) {
     const file = this.files.get(url);

@@ -237,6 +237,17 @@ test("graph: backlinks across files, duplicates, tags, tag index", () => {
   assert.deepEqual(index.get("nix").map((n) => n.id), ["file-id", "other"]);
   assert.deepEqual(index.get("decision").map((n) => n.id), ["h1", "h2"]);
   assert.equal(graph.idAt("file:///n/a.org", 25), "h2");
+  // Forward links: grouped by target, in order; unknown targets kept.
+  const forward = graph.forwardLinks(graph.files.get("file:///n/a.org").parsed.links.filter((l) => l.origin === "file-id"));
+  assert.deepEqual(
+    forward.map((g) => [g.id, g.to?.title ?? null, g.links.length]),
+    [
+      ["x", null, 1],
+      ["other", "Other", 1],
+      ["bare-id", null, 1],
+      ["h2", "Child with ID", 1],
+    ],
+  );
   graph.removeRoot("file:///n");
   assert.equal(graph.nodes.length, 0);
 });

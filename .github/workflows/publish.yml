@@ -1,0 +1,37 @@
+name: Publish
+
+# A published GitHub release builds the plugin, attaches plugin.zip to the
+# release, and uploads it to the Acode plugin store.  Needs the repository
+# secret ACODE_API_KEY: an acode.app API key with "Publish updates" for this
+# plugin (https://acode.app/api-keys).
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # to attach plugin.zip to the release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The tag matches plugin.json's version
+        run: |
+          version=$(node -p 'require("./plugin.json").version')
+          test "${GITHUB_REF_NAME#v}" = "$version" || { echo "Tag $GITHUB_REF_NAME does not match plugin.json version $version"; exit 1; }
+      - run: npm run build
+      - name: Attach plugin.zip to the release
+        run: gh release upload "$GITHUB_REF_NAME" dist/plugin.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: Acode-Foundation/publish-plugin@v1
+        with:
+          api-key: ${{ secrets.ACODE_API_KEY }}
+          zip: dist/plugin.zip

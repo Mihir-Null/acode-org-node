@@ -1,18 +1,32 @@
 {
   "id": "mihirnull.org-node",
-  "name": "Org-node",
+  "name": "Org-node: Org mode notes & backlinks",
   "main": "main.js",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "readme": "readme.md",
   "icon": "icon.png",
   "files": [],
   "minVersionCode": 1002,
   "price": 0,
   "license": "GPL-3.0-or-later",
-  "keywords": ["org", "org-mode", "org-node", "org-roam", "notes", "zettelkasten", "kittymacs"],
+  "keywords": [
+    "org",
+    "org-mode",
+    "orgmode",
+    "org-roam",
+    "org-node",
+    "notes",
+    "backlinks",
+    "zettelkasten",
+    "wiki",
+    "knowledge-base",
+    "emacs",
+    "kittymacs"
+  ],
   "changelogs": "changelogs.md",
   "author": {
     "name": "Mihir",
     "github": "Mihir-Null"
-  }
+  },
+  "repository": "https://github.com/Mihir-Null/acode-org-node"
 }
