@@ -124,6 +124,8 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
       this.readOnly = readOnly;
       openFiles.push(this);
       this.ready = (async () => {
+        // harness.loadDelay makes loading slow, as Android storage can be.
+        if (window.harness?.loadDelay) await new Promise((resolve) => setTimeout(resolve, window.harness.loadDelay));
         const doc = text ?? (await fsOperation(uri).readFile());
         this.state = EditorState.create({
           doc,
