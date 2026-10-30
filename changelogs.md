@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- The preview opens again: it showed an empty tab and the error "Cannot read properties of undefined (reading 'on')".
+  Opening a note that was not already open in a tab failed the same way. Both used the tab that
+  `acode.newEditorFile` makes, which Acode does not return; the plugin now makes its tabs with Acode's `EditorFile`.
+- A link in a heading is a link in the preview, not plain text.
+
 ## 0.3.0
 
 - **Any Org file** can be previewed: *Org: Preview* (`Alt-Shift-P`, or the Org button) renders it in a tab, unsaved

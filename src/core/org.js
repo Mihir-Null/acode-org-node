@@ -122,7 +122,8 @@ export function parseHeadingText(text, todoKeywords) {
     rest = rest.slice(0, tagMatch.index);
   }
   rest = rest.replace(/(?:[ \t]*\[[0-9/%]+\])+[ \t]*$/, "");
-  return { todo, title: linkDisplayFormat(rest).trim(), tags };
+  // TITLE shows links as their words, for searching; RAWTITLE keeps them, for the preview.
+  return { todo, title: linkDisplayFormat(rest).trim(), rawTitle: rest.trim(), tags };
 }
 
 /**

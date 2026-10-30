@@ -15,6 +15,7 @@
 import { renderOrg } from "../core/render.js";
 import { baseName } from "../core/paths.js";
 import previewCss from "./preview.css";
+import { openTab } from "./tabs.js";
 
 export class PreviewManager {
   /**
@@ -47,7 +48,7 @@ export class PreviewManager {
     root.className = "org-preview";
     root.addEventListener("click", (event) => this.#click(event, entry));
     const entry = { uri, sourceId: file.id, root, tab: null };
-    entry.tab = acode.newEditorFile(`${file.filename} · preview`, {
+    entry.tab = openTab(`${file.filename} · preview`, {
       type: "custom",
       content: root,
       stylesheets: previewCss,

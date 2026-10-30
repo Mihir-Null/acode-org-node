@@ -29,6 +29,13 @@ Body text.`);
   );
 });
 
+test("a link in a heading stays a link", () => {
+  assert.equal(
+    html("** Keep it out ([[file:archive/04-portability.md][portability]]) :decision:"),
+    '<h3 class="org-heading level-2" data-line="0">Keep it out (<a class="org-link org-file" data-file="archive/04-portability.md" data-search="">portability</a>) <span class="org-tags"><span>decision</span></span></h3>',
+  );
+});
+
 test("inline: links of every kind, emphasis, code, timestamps, escaping", () => {
   const ctx = { resolveId: (id) => (id === "known" ? { title: "Known note" } : null) };
   assert.equal(

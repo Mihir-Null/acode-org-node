@@ -221,6 +221,9 @@ the text comes from the open editor when there is one (`EditorFile.session` is i
 - **Events.** `save-file` re-parses the saved file from the editor's text; `add-folder` checks the new folder for a
   project flag; `resume` (the app returning to the foreground) re-reads what changed, which is how a `git pull` in
   Termux reaches the graph.
+- **Tabs** are made with `openTab` (`acode/tabs.js`), which constructs Acode's `EditorFile` class. The obvious
+  `acode.newEditorFile()` makes a tab but returns nothing, and the plugin needs the tab to wait for it to load or to
+  hear it close; the test harness's `newEditorFile` returns nothing too, so a regression shows up in the tests.
 - **The note at the cursor** is computed from the editor's live text, not the saved file. That gives the panel its
   forward links (the parsed links whose origin is this note) before you save; backlinks come from the index, since
   they live in other files.

@@ -24,6 +24,7 @@ import { BacklinksPanel } from "./acode/backlinks.js";
 import { Indexer, isGitRepo, readDirLocals } from "./acode/files.js";
 import { orgExtensions } from "./acode/orgmode.js";
 import { pickNode } from "./acode/picker.js";
+import { openTab } from "./acode/tabs.js";
 import { PreviewManager } from "./acode/preview.js";
 import { LanguageResolver } from "./acode/srcblocks.js";
 import styles from "./styles.css";
@@ -284,7 +285,7 @@ class OrgNodePlugin {
     const focusedAtStart = document.activeElement;
     let file = editorManager.getFile(url, "uri");
     if (file) file.makeActive();
-    else file = acode.newEditorFile(baseName(url), { uri: url, render: true });
+    else file = openTab(baseName(url), { uri: url, render: true });
     for (let waited = 0; !file.loaded && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50));
     if (editorManager.activeFile !== file) return;
     const view = this.view;
@@ -562,7 +563,7 @@ class OrgNodePlugin {
       lines.push(`* ${tag} (${notes.length})`);
       for (const node of notes) lines.push(`- ${makeIdLink(node.id, node.title)} · ${this.rootTitle(node.root)}/${node.rel}`);
     }
-    acode.newEditorFile("org-node-tags.org", { text: `${lines.join("\n")}\n`, render: true, isUnsaved: false, readOnly: true });
+    openTab("org-node-tags.org", { text: `${lines.join("\n")}\n`, render: true, isUnsaved: false, readOnly: true });
   }
 
   /** [SPC n b] Show the links panel. */

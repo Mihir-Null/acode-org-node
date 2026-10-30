@@ -2,7 +2,7 @@
   "id": "mihirnull.org_node",
   "name": "Org-node: Org mode notes & backlinks",
   "main": "main.js",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "readme": "readme.md",
   "icon": "icon.png",
   "files": [],

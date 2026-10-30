@@ -232,7 +232,7 @@ export function renderOrg(text, ctx = {}) {
         : "";
       const prio = priority && parts.todo !== null ? `<span class="org-priority">#${priority[1]}</span> ` : "";
       const tags = parts.tags.length ? ` <span class="org-tags">${parts.tags.map((t) => `<span>${escapeHtml(t)}</span>`).join("")}</span>` : "";
-      out.push(`<${tag} class="org-heading level-${level}" data-line="${i}">${todo}${prio}${renderInline(parts.title, ctx)}${tags}</${tag}>`);
+      out.push(`<${tag} class="org-heading level-${level}" data-line="${i}">${todo}${prio}${renderInline(parts.rawTitle, ctx)}${tags}</${tag}>`);
       // Its planning line, shown small.
       if (i + 1 < lines.length && PLANNING_RE.test(lines[i + 1])) {
         out.push(`<div class="org-planning">${escapeHtml(lines[i + 1].trim())}</div>`);
