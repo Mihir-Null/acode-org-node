@@ -97,7 +97,8 @@ test("an unclosed drawer is not a drawer", () => {
 });
 
 test("heading text edge cases", () => {
-  assert.deepEqual(parseHeadingText(":only:tags:", []), { todo: null, title: "", tags: ["only", "tags"] });
+  assert.deepEqual(parseHeadingText(":only:tags:", []), { todo: null, title: "", rawTitle: "", tags: ["only", "tags"] });
+  assert.equal(parseHeadingText("See [[id:x][the loop]]", []).rawTitle, "See [[id:x][the loop]]");
   assert.equal(parseHeadingText("Ratio 1:2 is not a tag", []).title, "Ratio 1:2 is not a tag");
   assert.equal(parseHeadingText("[2/10] Foo [5/10] Bar [1/10] [20%]", []).title, "Foo [5/10] Bar");
 });

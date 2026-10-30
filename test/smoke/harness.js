@@ -116,7 +116,7 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
   };
 
   class EditorFile {
-    constructor(filename, { uri, text, readOnly = false, type = "editor", content, stylesheets, highlightStyles } = {}) {
+    constructor(filename, { uri, text, readOnly = false, type = "editor", content, stylesheets, highlightStyles, render = true } = {}) {
       this.id = `file-${openFiles.length}`;
       this.filename = filename;
       this.uri = uri;
@@ -138,6 +138,7 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
         document.body.append(this.host);
         this.loaded = true;
         this.ready = Promise.resolve();
+        if (render) this.makeActive();
         return;
       }
       this.ready = (async () => {
@@ -160,6 +161,8 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
         });
         this.loaded = true;
       })();
+      // As in Acode, render (the default) makes the new tab the active one.
+      if (render) this.makeActive();
     }
     // Synchronous once loaded, like Acode's.
     makeActive() {
@@ -248,6 +251,7 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
       get: (name) => languages.get(name) ?? null,
       getForPath: (path) => [...languages.values()].find((m) => m.extensions.some((ext) => path.endsWith(`.${ext}`))) ?? mode("text", ["txt"], "Text"),
     },
+    editorfile: EditorFile,
     sidebutton: ({ text, onclick }) => {
       const button = { text, onclick, shown: false, show: () => (button.shown = true), hide: () => (button.shown = false) };
       sideButtons.push(button);
@@ -278,10 +282,10 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
     },
     addIcon() {},
     exec() {},
+    // Like Acode's: it makes the tab and returns nothing (the plugin must
+    // use acode.require("EditorFile") to hold on to the tab it makes).
     newEditorFile(filename, options) {
-      const file = new EditorFile(filename, options);
-      file.makeActive();
-      return file;
+      new EditorFile(filename, options);
     },
     async select(title, items) {
       log.selects.push(title);
@@ -316,7 +320,7 @@ window.setupAcode = ({ files, folders, settings, useFileIndex }) => {
     unmount: () => unmount(),
     run: (name) => commands.get(name).exec(editor),
     async open(uri) {
-      const file = editorManager.getFile(uri, "uri") ?? window.acode.newEditorFile(uri.split("/").pop(), { uri });
+      const file = editorManager.getFile(uri, "uri") ?? new EditorFile(uri.split("/").pop(), { uri });
       await file.ready;
       await file.makeActive();
       return file;
